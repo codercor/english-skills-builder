@@ -58,6 +58,38 @@ function buildCompletionResponse(segments: string[], values: string[]) {
     .trim();
 }
 
+function builderLabel(builderKind: PracticeSession["builderKind"]) {
+  if (builderKind === "phrase_idiom") {
+    return "Phrase & Idiom";
+  }
+
+  if (builderKind === "sentence") {
+    return "Sentence";
+  }
+
+  if (builderKind === "vocabulary") {
+    return "Vocabulary";
+  }
+
+  return "Grammar";
+}
+
+function learningModeLabel(learningMode: PracticeSession["learningMode"]) {
+  if (learningMode === "learn") {
+    return "Builder lesson";
+  }
+
+  if (learningMode === "challenge") {
+    return "Challenge";
+  }
+
+  if (learningMode === "review") {
+    return "Review lab";
+  }
+
+  return "Practice";
+}
+
 export function PracticeSessionClient({
   session,
 }: {
@@ -244,8 +276,8 @@ export function PracticeSessionClient({
 
   if (summary) {
     return (
-      <Surface className="space-y-5">
-        <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+      <Surface className="space-y-5 tonal-card">
+        <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
           Session summary
         </Badge>
         <div>
@@ -257,37 +289,37 @@ export function PracticeSessionClient({
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Surface className="rounded-3xl p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <p className="editorial-kicker">
               Mastery delta
             </p>
             <p className="mt-2 text-2xl font-semibold">
               +{Math.round(summary.masteryDelta * 100)} pts
             </p>
-          </Surface>
-          <Surface className="rounded-3xl p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+          </div>
+          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <p className="editorial-kicker">
               Review items created
             </p>
             <p className="mt-2 text-2xl font-semibold">{summary.reviewItemsCreated}</p>
-          </Surface>
-          <Surface className="rounded-3xl p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+          </div>
+          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <p className="editorial-kicker">
               Streak change
             </p>
             <p className="mt-2 text-2xl font-semibold">{summary.streakChange}</p>
-          </Surface>
-          <Surface className="rounded-3xl p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+          </div>
+          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <p className="editorial-kicker">
               League impact
             </p>
             <p className="mt-2 text-2xl font-semibold">{summary.leagueImpact}</p>
-          </Surface>
+          </div>
         </div>
-        <Surface className="rounded-[28px] bg-[linear-gradient(135deg,var(--color-ink),#123a56)] p-5 text-white">
+        <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] p-5 text-white shadow-[0_24px_52px_rgba(25,28,29,0.1)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+              <p className="editorial-kicker text-white/60">
                 Best next recommendation
               </p>
               <h3 className="mt-2 text-xl font-semibold">{summary.recommendationTitle}</h3>
@@ -297,52 +329,42 @@ export function PracticeSessionClient({
             </div>
             <Sparkles className="size-6 shrink-0 text-[color:var(--color-coral)]" />
           </div>
-        </Surface>
+        </div>
       </Surface>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <Surface className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
-              {session.mode} session
+    <div className="space-y-4">
+      <Surface ref={activeCardRef} className="space-y-5 tonal-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[rgba(192,200,203,0.15)] pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
+              {builderLabel(session.builderKind)}
             </Badge>
-            <h1 className="mt-3 text-3xl font-semibold text-[color:var(--color-ink)]">
-              {session.title}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-[color:var(--color-muted)]">
+            <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-ink)] shadow-none">
+              {session.primaryStructure}
+            </Badge>
+            <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
+              {session.lane}
+            </Badge>
+            <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
+              {learningModeLabel(session.learningMode)}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-[color:var(--color-muted)]">
+            <span>{currentIndex + 1} / {session.items.length}</span>
+            <span>{formatPercent(scorePreview)} preview</span>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <p className="editorial-kicker">{session.title}</p>
+            <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
               {session.description}
             </p>
           </div>
-          <Badge>{currentIndex + 1} / {session.items.length}</Badge>
-        </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-[color:var(--color-line)] pt-4 text-sm text-[color:var(--color-muted)]">
-          <p>
-            <span className="font-semibold text-[color:var(--color-ink)]">
-              {session.primaryStructure}
-            </span>{" "}
-            primary structure
-          </p>
-          <p>
-            <span className="font-semibold text-[color:var(--color-ink)]">
-              {session.lane}
-            </span>{" "}
-            lane
-          </p>
-          <p>
-            <span className="font-semibold text-[color:var(--color-ink)]">
-              {formatPercent(scorePreview)}
-            </span>{" "}
-            score preview
-          </p>
-        </div>
-      </Surface>
-
-      <Surface ref={activeCardRef} className="space-y-4">
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <Badge>{item.promptType.replace("_", " ")}</Badge>
           {item.memoryAnchor && item.promptType !== "memory_anchor" ? (
             <Badge>memory anchor</Badge>
@@ -350,6 +372,7 @@ export function PracticeSessionClient({
           <Badge className="bg-[rgba(255,107,76,0.12)] text-[color:var(--color-coral)]">
             {item.levelBand}
           </Badge>
+        </div>
         </div>
         <div>
           {completionPrompt ? (
@@ -377,7 +400,7 @@ export function PracticeSessionClient({
                         }}
                         placeholder="..."
                         aria-label={`Fill blank ${index + 1} for the current sentence`}
-                        className="mx-2 inline-flex h-14 w-auto min-w-[5.5rem] rounded-2xl border-[color:var(--color-teal)] bg-[rgba(33,186,168,0.06)] px-3 py-0 align-middle text-[1.05rem] font-semibold leading-none focus:ring-[rgba(33,186,168,0.16)]"
+                        className="mx-2 inline-flex h-14 w-auto min-w-[5.5rem] rounded-xl bg-[color:var(--color-panel)] px-3 py-0 align-middle text-[1.05rem] font-semibold leading-none shadow-[inset_0_0_0_1px_var(--color-line)] focus:ring-[rgba(15,76,92,0.08)] focus:shadow-[inset_0_0_0_1px_rgba(15,76,92,0.24),0_16px_34px_rgba(25,28,29,0.05)]"
                         style={{
                           width: `${Math.min(
                             220,
@@ -406,7 +429,7 @@ export function PracticeSessionClient({
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-3">
-                <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+                <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
                   Try again
                 </Badge>
                 <p className="text-sm font-semibold text-[color:var(--color-ink)]">
@@ -446,8 +469,8 @@ export function PracticeSessionClient({
               />
             ) : null}
             {feedback && !feedback.isAccepted && hasRevealedAnswer ? (
-              <div className="border-t border-[color:var(--color-line)] pt-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+              <div className="pt-4">
+                <p className="editorial-kicker">
                   Model answer
                 </p>
                 <p className="mt-2 text-base font-semibold leading-7 text-[color:var(--color-ink)]">
@@ -462,23 +485,23 @@ export function PracticeSessionClient({
             ) : null}
           </>
         ) : (
-          <div className="space-y-4 border-t border-[color:var(--color-line)] pt-4">
+          <div className="space-y-4 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+              <Badge className="bg-[color:var(--color-success)] text-[color:var(--color-success-ink)] shadow-none">
                 Accepted
               </Badge>
               <Badge>{Math.round(feedback.responseScore * 100)} score</Badge>
             </div>
-            <div className="rounded-3xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">
                 Your sentence
               </p>
               <p className="mt-2 text-base leading-7 text-[color:var(--color-ink)]">
                 {currentResponse}
               </p>
             </div>
-            <div className="rounded-3xl bg-[linear-gradient(135deg,#0f172a,#10334b)] p-5 text-white">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+            <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] p-5 text-white shadow-[0_24px_52px_rgba(25,28,29,0.1)]">
+              <p className="editorial-kicker text-white/60">
                 Why it works
               </p>
               <p className="mt-3 text-sm leading-7 text-white/84">
@@ -491,7 +514,7 @@ export function PracticeSessionClient({
                 {feedback.naturalRewrite}
               </p>
             </div>
-            <details className="rounded-3xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-4">
+            <details className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
               <summary className="cursor-pointer list-none text-sm font-semibold text-[color:var(--color-ink)]">
                 Stronger versions
               </summary>
@@ -499,9 +522,9 @@ export function PracticeSessionClient({
                 {feedback.levelUpVariants.map((variant) => (
                   <div
                     key={`${variant.level}-${variant.text}`}
-                    className="rounded-2xl border border-[color:var(--color-line)] bg-white px-4 py-3"
+                    className="rounded-[1.35rem] bg-[color:var(--color-soft)] px-4 py-3"
                   >
-                    <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+                    <p className="editorial-kicker">
                       {variant.level}
                     </p>
                     <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
@@ -554,6 +577,9 @@ export function PracticeSessionClient({
             <ArrowRight className="ml-2 size-4" />
           </Button>
         )}
+        <p className="text-xs leading-6 text-[color:var(--color-muted)]">
+          Each answer updates scoring, mastery, review timing, and the next recommendation.
+        </p>
       </Surface>
     </div>
   );

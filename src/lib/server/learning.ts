@@ -2,6 +2,7 @@ import {
   addDays,
   endOfWeek,
   format,
+  startOfDay,
   startOfWeek,
   subDays,
 } from "date-fns";
@@ -10,7 +11,9 @@ import {
   asc,
   desc,
   eq,
+  gte,
   inArray,
+  isNotNull,
   lte,
   sql,
 } from "drizzle-orm";
@@ -20,7 +23,12 @@ import {
   getPracticeBlueprints,
   type PracticeBlueprint,
 } from "@/lib/data/practice-bank";
-import { getStructureUnit, structureCatalog } from "@/lib/catalog";
+import {
+  getBuilderKinds,
+  getBuilderMeta,
+  getStructureUnit,
+  structureCatalog,
+} from "@/lib/catalog";
 import { db } from "@/lib/db/client";
 import {
   achievements,
@@ -49,7 +57,7 @@ import {
 } from "@/lib/engine/mastery";
 import { evaluateAssessment, summarizeSession } from "@/lib/engine/evaluator";
 import { buildAchievements, buildWeeklyLearningScore } from "@/lib/engine/gamification";
-import { buildStrengths, buildGrowthAreas } from "@/lib/engine/profile";
+import { buildStrengths, buildGrowthAreas, toUserFacingStage } from "@/lib/engine/profile";
 import { buildProgressionDecision } from "@/lib/engine/progression";
 import {
   buildCandidateActions,
@@ -57,6 +65,7 @@ import {
 } from "@/lib/engine/recommendations";
 import type {
   AssessmentResult,
+  BuilderKind,
   DashboardSnapshot,
   DecisionLog,
   LeagueEntry,
@@ -72,6 +81,7 @@ import type {
   ReviewItem,
   SkillArea,
   SkillSnapshot,
+  UserFacingStage,
   Viewer,
 } from "@/lib/types";
 import {
@@ -82,6 +92,7 @@ import {
   titleCase,
 } from "@/lib/utils";
 import type { OnboardingProfile } from "@/lib/onboarding";
+import { getBuildersHubSnapshot } from "@/lib/server/topic-views";
 
 type Db = NonNullable<typeof db>;
 
@@ -178,6 +189,624 @@ function currentWeekLabel(date = new Date()) {
   return `Week of ${format(startsAt, "MMMM d")}`;
 }
 
+function ensureSentence(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function formatSignedPoints(value: number) {
+  const rounded = Math.round(value * 100);
+  return `${rounded > 0 ? "+" : ""}${rounded} pts`;
+}
+
+function formatAverageHintDelta(value: number) {
+  return `${round(value, 1)} fewer hints`;
+}
+
+function humanizeStructureKey(structureKey: string) {
+  return getStructureUnit(structureKey)?.title ?? titleCase(structureKey);
+}
+
+function missionModeLabel(kind: RecommendationPayload["selected"]["kind"]) {
+  if (kind === "due_review") {
+    return "Review";
+  }
+
+  if (kind === "weakness_repair") {
+    return "Weakness repair";
+  }
+
+  return "Recommended practice";
+}
+
+function missionTitle(
+  action: RecommendationPayload["selected"],
+  unit: ReturnType<typeof getStructureUnit> | undefined,
+) {
+  if (action.kind === "due_review") {
+    return unit
+      ? `Bring ${unit.title} back before it fades`
+      : "Recover a weak structure before it fades";
+  }
+
+  if (unit) {
+    return ensureSentence(unit.description);
+  }
+
+  return "Practice the next move that strengthens your English.";
+}
+
+function missionSuccessDefinition(
+  action: RecommendationPayload["selected"],
+  unit: ReturnType<typeof getStructureUnit> | undefined,
+) {
+  const structureTitle = unit?.title ?? "this focus";
+
+  if (action.kind === "due_review") {
+    return `Clear 5 review prompts so ${structureTitle} stays available when you need it.`;
+  }
+
+  if (action.kind === "weakness_repair") {
+    return `Finish 5 prompts with fewer hints and fewer repeated slips in ${structureTitle}.`;
+  }
+
+  if (action.kind === "new_practice") {
+    return `Keep ${structureTitle} stable across 5 more open prompts.`;
+  }
+
+  return `Use 5 prompts to build cleaner control in ${structureTitle}.`;
+}
+
+function missionNote(
+  action: RecommendationPayload["selected"],
+  unit: ReturnType<typeof getStructureUnit> | undefined,
+  dueReviewCount: number,
+) {
+  if (action.kind === "due_review") {
+    return dueReviewCount
+      ? `${dueReviewCount} review item${dueReviewCount === 1 ? "" : "s"} are already due, so recovery gives the fastest return today.`
+      : "Review will protect recent gains before new load is added.";
+  }
+
+  if (action.kind === "weakness_repair") {
+    return unit
+      ? `${unit.title} is the clearest bottleneck in your recent answers.`
+      : "This is the weakest part of your current map.";
+  }
+
+  return unit
+    ? `${unit.title} is close enough to move, but still needs one more clean push.`
+    : "This is the best next session for steady momentum.";
+}
+
+function buildWhyNowCopy(
+  record: MasteryRecord,
+  reviewQueue: ReviewItem[],
+  unit: ReturnType<typeof getStructureUnit> | undefined,
+) {
+  const reviewDueForStructure = reviewQueue.some(
+    (item) => item.structureKey === record.structureKey,
+  );
+
+  const whatKeepsSlipping = reviewDueForStructure
+    ? `${record.title} is due for review, and the same weakness still shows up when you revisit it.`
+    : record.repeatedErrorRate14d > 0.22
+      ? `The same ${record.title.toLowerCase()} slip keeps returning when prompts get more open.`
+      : record.hintDependenceRate14d > 0.2
+        ? `You can repair ${record.title.toLowerCase()}, but you still need support before it holds on its own.`
+        : record.reviewSuccessRate30d < 0.65
+          ? `${record.title} lands in practice, but it is not staying stable in review yet.`
+          : `${record.title} is the clearest place where one strong session can improve your next sentences.`;
+
+  const whatThisImproves = unit
+    ? ensureSentence(unit.description)
+    : "This practice sharpens a weak point that still slows sentence quality.";
+
+  const support =
+    record.progressionState === "promotion_candidate"
+      ? "A clean session here should move this structure closer to stable control."
+      : record.progressionState === "review_required"
+        ? "Recovering this first will make new practice more likely to stick."
+        : "A focused session here should lower repeated errors and make first tries cleaner.";
+
+  return {
+    whatKeepsSlipping,
+    whatThisImproves,
+    support,
+  };
+}
+
+function collapseToLatestAttempts(
+  rows: (typeof userResponses.$inferSelect)[],
+) {
+  const latestByItem = new Map<string, (typeof userResponses.$inferSelect)>();
+
+  for (const row of rows) {
+    const current = latestByItem.get(row.itemId);
+    if (!current || row.attemptNumber > current.attemptNumber) {
+      latestByItem.set(row.itemId, row);
+    }
+  }
+
+  return [...latestByItem.values()];
+}
+
+function buildProgressProof(
+  mastery: MasteryRecord[],
+  latestAttempts14d: (typeof userResponses.$inferSelect)[],
+  sessionModeById: Map<string, PracticeSession["mode"]>,
+  repeatedByResponseId: Map<string, boolean>,
+): DashboardSnapshot["progressProof"] {
+  const now = new Date();
+  const recentStart = subDays(now, 7);
+  const previousStart = subDays(now, 14);
+
+  const recentAttempts = latestAttempts14d.filter(
+    (row) => row.createdAt >= recentStart,
+  );
+  const previousAttempts = latestAttempts14d.filter(
+    (row) => row.createdAt >= previousStart && row.createdAt < recentStart,
+  );
+
+  const recentReviewAttempts = recentAttempts.filter(
+    (row) => sessionModeById.get(row.sessionId) === "review",
+  );
+  const previousReviewAttempts = previousAttempts.filter(
+    (row) => sessionModeById.get(row.sessionId) === "review",
+  );
+
+  const proofCards: Array<DashboardSnapshot["progressProof"]["items"][number] & { weight: number }> = [];
+
+  const firstTryDelta =
+    average(recentAttempts.map((row) => (row.firstTrySuccess ? 1 : 0))) -
+    average(previousAttempts.map((row) => (row.firstTrySuccess ? 1 : 0)));
+  if (recentAttempts.length >= 3 && previousAttempts.length >= 3 && firstTryDelta >= 0.08) {
+    proofCards.push({
+      id: "first-try",
+      label: "Cleaner first tries",
+      value: formatSignedPoints(firstTryDelta),
+      note: "You are landing more sentences without having to repair them first.",
+      weight: firstTryDelta,
+    });
+  }
+
+  const hintDelta =
+    average(previousAttempts.map((row) => row.hintCount)) -
+    average(recentAttempts.map((row) => row.hintCount));
+  if (recentAttempts.length >= 3 && previousAttempts.length >= 3 && hintDelta >= 0.25) {
+    proofCards.push({
+      id: "hints",
+      label: "Fewer hints needed",
+      value: formatAverageHintDelta(hintDelta),
+      note: "You are correcting yourself earlier instead of waiting for more support.",
+      weight: hintDelta / 2,
+    });
+  }
+
+  const recentRepeatedRate = average(
+    recentAttempts.map((row) => (repeatedByResponseId.get(row.id) ? 1 : 0)),
+  );
+  const previousRepeatedRate = average(
+    previousAttempts.map((row) => (repeatedByResponseId.get(row.id) ? 1 : 0)),
+  );
+  const repeatedDelta = previousRepeatedRate - recentRepeatedRate;
+  if (recentAttempts.length >= 3 && previousAttempts.length >= 3 && repeatedDelta >= 0.08) {
+    proofCards.push({
+      id: "repeated-errors",
+      label: "Repeated mistakes are down",
+      value: formatSignedPoints(repeatedDelta),
+      note: "The same grammar slip is showing up less often in your recent work.",
+      weight: repeatedDelta,
+    });
+  }
+
+  const recentReviewWins = recentReviewAttempts.filter((row) => row.responseScore >= 0.72).length;
+  const previousReviewWins = previousReviewAttempts.filter((row) => row.responseScore >= 0.72).length;
+  if (recentReviewAttempts.length && recentReviewWins > previousReviewWins) {
+    proofCards.push({
+      id: "review-wins",
+      label: "Review is sticking",
+      value: `+${recentReviewWins - previousReviewWins} wins`,
+      note: "You are bringing weak structures back with more control before they fade.",
+      weight: recentReviewWins - previousReviewWins,
+    });
+  }
+
+  const movedStructure = [...mastery]
+    .sort((left, right) => right.masteryDelta7d - left.masteryDelta7d)
+    .find((record) => record.masteryDelta7d >= 0.05);
+  if (movedStructure) {
+    proofCards.push({
+      id: "structure-move",
+      label: "Structure moving forward",
+      value: movedStructure.title,
+      note: `${movedStructure.title} is now ${toUserFacingStage(movedStructure).toLowerCase()} because recent practice is translating into cleaner attempts.`,
+      weight: movedStructure.masteryDelta7d,
+    });
+  }
+
+  const items = proofCards
+    .sort((left, right) => right.weight - left.weight)
+    .slice(0, 3)
+    .map((card) => ({
+      id: card.id,
+      label: card.label,
+      value: card.value,
+      note: card.note,
+    }));
+
+  if (items.length) {
+    return { items };
+  }
+
+  return {
+    items: [],
+    fallbackTitle: "Build your first proof",
+    fallbackBody:
+      "Complete a few clean sessions or one strong review block and this space will start showing evidence from your own learning history.",
+  };
+}
+
+function buildPracticeCoverage(
+  weekSessions: (typeof practiceSessions.$inferSelect)[],
+  weekAttempts: (typeof userResponses.$inferSelect)[],
+  sessionById: Map<string, typeof practiceSessions.$inferSelect>,
+): DashboardSnapshot["practiceCoverage"] {
+  const completedSessions = weekSessions.filter((session) => session.learningScore !== null);
+  const latestWeekAttempts = collapseToLatestAttempts(weekAttempts);
+  const completedReviewItems = latestWeekAttempts.filter(
+    (row) => sessionById.get(row.sessionId)?.mode === "review",
+  );
+
+  const touchedStructures = [...new Set(completedSessions.map((session) => session.primaryStructure))];
+  const builderCounts = getBuilderKinds().map((builderKind) => ({
+    builderKind,
+    label: getBuilderMeta(builderKind).shortTitle,
+    count: completedSessions.filter((session) => {
+      const unit = getStructureUnit(session.primaryStructure);
+      return unit?.builderKind === builderKind;
+    }).length,
+  }));
+
+  return {
+    practiceSessions: completedSessions.filter((session) => session.mode === "practice").length,
+    reviewItems: completedReviewItems.length,
+    topicsTouched: touchedStructures.length,
+    recentTopics: touchedStructures
+      .slice(0, 5)
+      .map((structureKey) => humanizeStructureKey(structureKey)),
+    builderCounts,
+  };
+}
+
+function buildLearningMapSummary(
+  mastery: MasteryRecord[],
+  reviewQueue: ReviewItem[],
+  reviewHref: string,
+  bestNextPracticeHref: string,
+): DashboardSnapshot["learningMapSummary"] {
+  const strongest = [...mastery].sort((left, right) => right.masteryScore - left.masteryScore)[0];
+  const weakest = mastery[0];
+  const middleCandidates = mastery.filter(
+    (record) =>
+      record.structureKey !== weakest.structureKey &&
+      record.structureKey !== strongest.structureKey,
+  );
+  const improving =
+    [...middleCandidates].sort((left, right) => {
+      const leftPriority =
+        (left.progressionState === "promotion_candidate" ? 1 : 0) + left.masteryDelta7d;
+      const rightPriority =
+        (right.progressionState === "promotion_candidate" ? 1 : 0) + right.masteryDelta7d;
+      return rightPriority - leftPriority;
+    })[0] ?? strongest;
+  const dueKeys = new Set(reviewQueue.map((item) => item.structureKey));
+
+  return [
+    {
+      label: "Needs attention" as const,
+      structureTitle: weakest.title,
+      stageLabel: toUserFacingStage(weakest),
+      note: dueKeys.has(weakest.structureKey)
+        ? "Review is already due here, and the same slip still shows up in open answers."
+        : weakest.repeatedErrorRate14d > 0.2
+          ? "Repeated slips still pull this structure down when prompts get less controlled."
+          : "This is the clearest place where one focused session can improve accuracy.",
+      actionLabel:
+        dueKeys.has(weakest.structureKey) || weakest.progressionState === "review_required"
+          ? "Review"
+          : "Practice",
+      actionHref:
+        dueKeys.has(weakest.structureKey) || weakest.progressionState === "review_required"
+          ? reviewHref
+          : "/practice/weakest-area",
+    },
+    {
+      label: "Improving now" as const,
+      structureTitle: improving.title,
+      stageLabel: toUserFacingStage(improving),
+      note:
+        improving.progressionState === "promotion_candidate"
+          ? "One more strong session could push this structure into a safer range."
+          : improving.masteryDelta7d > 0
+            ? "Recent sessions are translating into cleaner first tries here."
+            : "This structure is steady enough to reward another clean push.",
+      actionLabel:
+        dueKeys.has(improving.structureKey) || improving.progressionState === "review_required"
+          ? "Review"
+          : "Practice",
+      actionHref:
+        dueKeys.has(improving.structureKey) || improving.progressionState === "review_required"
+          ? reviewHref
+          : improving.structureKey === weakest.structureKey
+            ? "/practice/weakest-area"
+            : bestNextPracticeHref,
+    },
+    {
+      label: "Strongest area" as const,
+      structureTitle: strongest.title,
+      stageLabel: toUserFacingStage(strongest),
+      note: "This is your most stable structure right now, even when prompts open up.",
+      actionLabel: "Keep warm",
+      actionHref: "/practice/momentum-lab",
+    },
+  ];
+}
+
+function nextUserFacingStage(record: MasteryRecord): UserFacingStage {
+  const current = toUserFacingStage(record);
+
+  if (current === "Needs work") {
+    return "Improving";
+  }
+
+  if (current === "Improving") {
+    return "Nearly stable";
+  }
+
+  if (current === "Needs review") {
+    return record.masteryStage === "fragile" ? "Improving" : "Nearly stable";
+  }
+
+  return "Strong";
+}
+
+function buildNextUnlock(
+  mastery: MasteryRecord[],
+  reviewQueue: ReviewItem[],
+  reviewHref: string,
+  bestNextPracticeHref: string,
+): DashboardSnapshot["nextUnlock"] {
+  const candidates = mastery.filter(
+    (record) => toUserFacingStage(record) !== "Strong",
+  );
+  const target =
+    [...candidates].sort((left, right) => {
+      const leftPriority =
+        (left.promotionEligible ? 1 : 0) +
+        left.masteryScore +
+        left.masteryDelta7d -
+        left.repeatedErrorRate14d * 0.4 -
+        left.hintDependenceRate14d * 0.3;
+      const rightPriority =
+        (right.promotionEligible ? 1 : 0) +
+        right.masteryScore +
+        right.masteryDelta7d -
+        right.repeatedErrorRate14d * 0.4 -
+        right.hintDependenceRate14d * 0.3;
+      return rightPriority - leftPriority;
+    })[0] ?? mastery[0];
+
+  const requirementParts: string[] = [];
+  if (
+    target.repeatedErrorRate14d > 0.15 ||
+    target.masteryStage === "fragile"
+  ) {
+    requirementParts.push("2 clean practice sessions");
+  }
+  if (
+    target.reviewSuccessRate30d < 0.7 ||
+    reviewQueue.some((item) => item.structureKey === target.structureKey)
+  ) {
+    requirementParts.push("1 successful review");
+  }
+  if (target.hintDependenceRate14d > 0.2) {
+    requirementParts.push("1 low-hint session");
+  }
+  if (target.promptTypeCoverage < 0.5) {
+    requirementParts.push("1 mixed-prompt session");
+  }
+
+  const actionHref =
+    reviewQueue.some((item) => item.structureKey === target.structureKey) ||
+    target.progressionState === "review_required"
+      ? reviewHref
+      : target.structureKey === mastery[0]?.structureKey
+        ? "/practice/weakest-area"
+        : bestNextPracticeHref;
+
+  return {
+    structureTitle: target.title,
+    currentStageLabel: toUserFacingStage(target),
+    nextStageLabel: nextUserFacingStage(target),
+    requirement:
+      requirementParts.slice(0, 3).join(" + ") || "1 strong session to confirm the move",
+    note:
+      target.progressionState === "promotion_candidate"
+        ? "This structure is closest to a visible step up if you can keep it clean."
+        : "This is the next realistic step on your map, not a vague long-term goal.",
+    actionLabel:
+      reviewQueue.some((item) => item.structureKey === target.structureKey) ||
+      target.progressionState === "review_required"
+        ? "Open review"
+        : "Work on it",
+    actionHref,
+  };
+}
+
+function buildReviewPressure(
+  reviewQueue: ReviewItem[],
+  mastery: MasteryRecord[],
+): DashboardSnapshot["reviewPressure"] {
+  const today = startOfDay(new Date());
+  const overdueCount = reviewQueue.filter(
+    (item) => new Date(item.dueAt) < today,
+  ).length;
+  const nextDue =
+    reviewQueue[0] ??
+    [...mastery]
+      .sort(
+        (left, right) =>
+          new Date(left.nextReviewDueAt).getTime() -
+          new Date(right.nextReviewDueAt).getTime(),
+      )
+      .map((record) => ({
+        structureKey: record.structureKey,
+      }))[0];
+  const nextStructureTitle = nextDue
+    ? humanizeStructureKey(nextDue.structureKey)
+    : null;
+
+  return {
+    dueCount: reviewQueue.length,
+    overdueCount,
+    nextStructureTitle,
+    note: reviewQueue.length
+      ? `${nextStructureTitle ?? "A weak structure"} is ready for recovery now, which makes today’s next session more likely to stick.`
+      : nextStructureTitle
+        ? `No reviews are due right now. ${nextStructureTitle} is the next structure to keep warm.`
+        : "No reviews are due right now.",
+    actionLabel: reviewQueue.length ? "Open due review" : "Open review hub",
+    actionHref: reviewQueue.length ? "/practice/review-due" : "/review",
+  };
+}
+
+function leagueMovementLabel(status: LeagueEntry["leagueStatus"]) {
+  if (status === "promote") {
+    return "Rising";
+  }
+
+  if (status === "watch") {
+    return "Watch zone";
+  }
+
+  return "Holding";
+}
+
+function buildTodayMission(
+  action: RecommendationPayload["selected"],
+  unit: ReturnType<typeof getStructureUnit> | undefined,
+  dueReviewCount: number,
+  completedToday: boolean,
+  alternateAction?: RecommendationPayload["selected"],
+): DashboardSnapshot["todayMission"] {
+  const primaryAction =
+    completedToday && alternateAction
+      ? {
+          label: "Choose another focus",
+          href:
+            alternateAction.kind === "due_review"
+              ? "/practice/review-due"
+              : alternateAction.href,
+        }
+      : {
+          label: "Start today’s practice",
+          href: action.kind === "due_review" ? "/practice/review-due" : action.href,
+        };
+
+  return {
+    title: missionTitle(action, unit),
+    technicalLabel: unit ? `Target structure: ${unit.title}` : "Target structure: Review queue",
+    modeLabel: missionModeLabel(action.kind),
+    targetLevel: action.levelBand ?? unit?.baseLevel ?? "B1",
+    promptCount: action.kind === "due_review" ? 5 : pickBlueprints(action.structureKey ?? unit?.key ?? "articles").length,
+    successDefinition: missionSuccessDefinition(action, unit),
+    note: completedToday
+      ? `You already completed today’s recommended session on ${unit?.title ?? "this focus"}. Keep momentum by opening another focus or clearing review next.`
+      : missionNote(action, unit, dueReviewCount),
+    primaryAction,
+    secondaryActions: [
+      {
+        label: completedToday ? "Open review" : "Choose another focus",
+        href: completedToday
+          ? dueReviewCount
+            ? "/practice/review-due"
+            : "/review"
+          : "/practice/momentum-lab",
+      },
+      {
+        label: completedToday ? "Open learning map" : "Open review",
+        href: completedToday
+          ? "/profile?tab=map"
+          : dueReviewCount
+            ? "/practice/review-due"
+            : "/review",
+      },
+    ],
+  };
+}
+
+function buildRecentWin(
+  latestAttempts14d: (typeof userResponses.$inferSelect)[],
+  sessionById: Map<string, typeof practiceSessions.$inferSelect>,
+  feedbackByResponseId: Map<string, typeof feedbackEvents.$inferSelect>,
+): DashboardSnapshot["recentWin"] {
+  const candidate = [...latestAttempts14d]
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .find((row) => {
+      const feedback = feedbackByResponseId.get(row.id);
+      return (
+        feedback &&
+        (!row.firstTrySuccess || row.hintCount > 0 || row.retryCount > 0) &&
+        row.rawUserResponse.trim().toLowerCase() !==
+          feedback.naturalRewrite.trim().toLowerCase()
+      );
+    });
+
+  if (!candidate) {
+    return null;
+  }
+
+  const feedback = feedbackByResponseId.get(candidate.id);
+  const session = sessionById.get(candidate.sessionId);
+  if (!feedback || !session) {
+    return null;
+  }
+
+  return {
+    structureTitle: humanizeStructureKey(session.primaryStructure),
+    beforeText: candidate.rawUserResponse,
+    afterText: feedback.naturalRewrite,
+    note: feedback.whyItWorks,
+  };
+}
+
+function buildLeagueMini(league: LeagueSnapshot): DashboardSnapshot["leagueMini"] {
+  const viewerEntry =
+    league.entries.find((entry) => entry.isViewer) ??
+    league.entries[0] ?? {
+      rank: league.viewerRank,
+      learner: "You",
+      levelBand: "B1" as LevelBand,
+      weeklyLearningScore: 0,
+      masteryDelta: 0,
+      leagueStatus: "stay" as const,
+      isViewer: true,
+    };
+
+  return {
+    viewerRank: league.viewerRank,
+    totalMembers: league.totalMembers,
+    weeklyLearningScore: viewerEntry.weeklyLearningScore,
+    movementLabel: leagueMovementLabel(viewerEntry.leagueStatus),
+    href: "/league",
+  };
+}
+
 function bracketFromLevel(level: LevelBand) {
   if (level === "C1") {
     return "B2 / C1 production league";
@@ -243,6 +872,15 @@ function mapPracticeRowsToSession(
   sessionRow: typeof practiceSessions.$inferSelect,
   itemRows: typeof practiceItems.$inferSelect[],
 ): PracticeSession {
+  const unit = getStructureUnit(sessionRow.primaryStructure) ?? structureCatalog[0];
+  const learningMode =
+    sessionRow.mode === "review"
+      ? "review"
+      : sessionRow.title.includes("Challenge")
+        ? "challenge"
+        : sessionRow.title.includes("Lesson")
+          ? "learn"
+          : "practice";
   const items = itemRows.map((row) => {
     const metadata = row.metadata as {
       levelBand: LevelBand;
@@ -282,8 +920,15 @@ function mapPracticeRowsToSession(
     description:
       sessionRow.mode === "review"
         ? "Recover weak structures before they fade."
+        : learningMode === "learn"
+          ? "Recall the pattern, see it in context, then use it across five guided prompts."
+          : learningMode === "challenge"
+            ? "Push this topic into more open production without losing control."
         : "Build clean control through correction, not passive reading.",
     mode: sessionRow.mode as PracticeSession["mode"],
+    learningMode,
+    builderKind: unit.builderKind,
+    topicKey: sessionRow.primaryStructure,
     primaryStructure: titleCase(sessionRow.primaryStructure),
     supportObjective: sessionRow.supportObjective,
     targetLevel: sessionRow.targetLevel as LevelBand,
@@ -291,6 +936,10 @@ function mapPracticeRowsToSession(
     focusReason:
       sessionRow.mode === "review"
         ? "These items are due now, so review gives the fastest return."
+        : learningMode === "learn"
+          ? "This session teaches the pattern briefly, then makes you use it before you move on."
+          : learningMode === "challenge"
+            ? "This topic is ready for a harder version that checks whether it really holds in open production."
         : "This session targets the structure most likely to improve your next sentence fastest.",
     items,
   };
@@ -299,6 +948,86 @@ function mapPracticeRowsToSession(
 function pickBlueprints(structureKey: string) {
   const blueprints = getPracticeBlueprints(structureKey);
   return blueprints.slice(0, 5);
+}
+
+async function getCompletedPracticeSessionsSince(userId: string, since: Date) {
+  const database = requireDb();
+
+  return database
+    .select()
+    .from(practiceSessions)
+    .where(
+      and(
+        eq(practiceSessions.userId, userId),
+        eq(practiceSessions.mode, "practice"),
+        gte(practiceSessions.createdAt, since),
+        isNotNull(practiceSessions.learningScore),
+      ),
+    );
+}
+
+async function pickBlueprintsForUser(
+  userId: string,
+  structureKey: string,
+  mode: PracticeSession["mode"],
+) {
+  const blueprints = getPracticeBlueprints(structureKey);
+  if (blueprints.length <= 5) {
+    return blueprints;
+  }
+
+  const database = requireDb();
+  const priorSessions = await database
+    .select({ id: practiceSessions.id })
+    .from(practiceSessions)
+    .where(
+      and(
+        eq(practiceSessions.userId, userId),
+        eq(practiceSessions.primaryStructure, structureKey),
+        eq(practiceSessions.mode, mode),
+        isNotNull(practiceSessions.learningScore),
+      ),
+    );
+
+  const offset = priorSessions.length % blueprints.length;
+  return Array.from({ length: 5 }, (_, index) => {
+    return blueprints[(offset + index) % blueprints.length];
+  });
+}
+
+function chooseNextCandidateAction(
+  ranked: RecommendationPayload["ranked"],
+  completedTodayStructureKeys: Set<string>,
+  options?: {
+    allowDueReview?: boolean;
+    allowCustomStructure?: boolean;
+  },
+) {
+  const allowDueReview = options?.allowDueReview ?? false;
+  const allowCustomStructure = options?.allowCustomStructure ?? false;
+
+  return (
+    ranked.find((action) => {
+      if (action.kind === "due_review") {
+        return allowDueReview;
+      }
+
+      if (action.kind === "custom_structure") {
+        return allowCustomStructure;
+      }
+
+      if (!action.structureKey) {
+        return false;
+      }
+
+      return !completedTodayStructureKeys.has(action.structureKey);
+    }) ??
+    ranked.find((action) => action.kind === "new_practice") ??
+    ranked.find((action) => action.kind === "weakness_repair") ??
+    ranked.find((action) => action.kind === "due_review" && allowDueReview) ??
+    ranked.find((action) => action.kind === "custom_structure" && allowCustomStructure) ??
+    ranked[0]
+  );
 }
 
 async function ensureStructureCatalogSeeded() {
@@ -1177,6 +1906,69 @@ function chooseCustomStructure(records: MasteryRecord[]) {
   return promotionCandidate ?? [...records].sort((a, b) => b.masteryScore - a.masteryScore)[0];
 }
 
+function parseTopicSessionSlug(sessionIdOrSlug: string) {
+  const parts = sessionIdOrSlug.split("--");
+  if (parts.length !== 4 || parts[0] !== "topic") {
+    return null;
+  }
+
+  const builderKind = parts[1] as BuilderKind;
+  const topicKey = parts[2];
+  const learningMode = parts[3] as PracticeSession["learningMode"];
+  const topic = getStructureUnit(topicKey);
+
+  if (!topic || topic.builderKind !== builderKind) {
+    return null;
+  }
+
+  return {
+    builderKind,
+    topicKey,
+    learningMode,
+    topic,
+  };
+}
+
+function orderBlueprintsForLearningMode(
+  blueprints: PracticeBlueprint[],
+  learningMode: PracticeSession["learningMode"],
+) {
+  const weights: Record<string, number> =
+    learningMode === "challenge"
+      ? {
+          free_production: 0,
+          guided_generation: 1,
+          memory_anchor: 2,
+          constraint_based: 3,
+          rewrite: 4,
+          completion: 5,
+          error_correction: 6,
+        }
+      : learningMode === "review"
+        ? {
+            error_correction: 0,
+            completion: 1,
+            rewrite: 2,
+            guided_generation: 3,
+            constraint_based: 4,
+            free_production: 5,
+            memory_anchor: 6,
+          }
+        : {
+            memory_anchor: 0,
+            rewrite: 1,
+            guided_generation: 2,
+            completion: 3,
+            constraint_based: 4,
+            free_production: 5,
+            error_correction: 6,
+          };
+
+  return [...blueprints].sort((left, right) => {
+    return (weights[left.promptType] ?? 99) - (weights[right.promptType] ?? 99);
+  });
+}
+
 export async function getOrCreatePracticeSession(
   viewer: Viewer,
   sessionIdOrSlug: string,
@@ -1208,6 +2000,62 @@ export async function getOrCreatePracticeSession(
     return null;
   }
 
+  const manualTopicRequest = parseTopicSessionSlug(sessionIdOrSlug);
+  if (manualTopicRequest) {
+    const targetLevel =
+      manualTopicRequest.topic.skillArea === "grammar"
+        ? (profile.grammarControl as LevelBand)
+        : manualTopicRequest.topic.skillArea === "vocabulary"
+          ? (profile.vocabularyUsage as LevelBand)
+          : (profile.sentenceBuilding as LevelBand);
+    const baseBlueprints = await pickBlueprintsForUser(
+      viewer.id,
+      manualTopicRequest.topicKey,
+      manualTopicRequest.learningMode === "review" ? "review" : "practice",
+    );
+    const orderedBlueprints = orderBlueprintsForLearningMode(
+      baseBlueprints,
+      manualTopicRequest.learningMode,
+    );
+    const dueItems = manualTopicRequest.learningMode === "review"
+      ? (await getDueReviewItems(viewer.id)).filter(
+          (item) => item.structureKey === manualTopicRequest.topicKey,
+        )
+      : [];
+    const blueprints = orderedBlueprints.map((blueprint, index) => ({
+      ...blueprint,
+      prompt: dueItems[index]?.prompt ?? blueprint.prompt,
+    }));
+    const sessionTitle =
+      manualTopicRequest.learningMode === "learn"
+        ? `${manualTopicRequest.topic.title} Builder Lesson`
+        : manualTopicRequest.learningMode === "challenge"
+          ? `${manualTopicRequest.topic.title} Challenge`
+          : manualTopicRequest.learningMode === "review"
+            ? `${manualTopicRequest.topic.title} Review Lab`
+            : `${manualTopicRequest.topic.title} Practice Sprint`;
+    const lane =
+      manualTopicRequest.learningMode === "challenge"
+        ? "Advanced Expression"
+        : manualTopicRequest.learningMode === "review"
+          ? "Controlled Production"
+          : manualTopicRequest.topic.baseLevel === "A2"
+            ? "Foundation"
+            : "Controlled Production";
+
+    return createPracticeSessionRecord(
+      viewer,
+      sessionIdOrSlug,
+      manualTopicRequest.learningMode === "review" ? "review" : "practice",
+      manualTopicRequest.topicKey,
+      targetLevel,
+      sessionTitle,
+      manualTopicRequest.topic.supportObjective,
+      lane,
+      blueprints,
+    );
+  }
+
   const records = await getMasteryRecordsForUser(viewer.id);
   const recommendation = buildRecommendationPayload({
     masteryRecords: records,
@@ -1221,7 +2069,7 @@ export async function getOrCreatePracticeSession(
     }
 
     const structureKey = dueItems[0].structureKey;
-    const blueprints = pickBlueprints(structureKey).map((blueprint, index) => ({
+    const blueprints = (await pickBlueprintsForUser(viewer.id, structureKey, "review")).map((blueprint, index) => ({
       ...blueprint,
       prompt: dueItems[index]?.prompt ?? blueprint.prompt,
     }));
@@ -1239,16 +2087,48 @@ export async function getOrCreatePracticeSession(
     );
   }
 
+  let effectiveRecommendation = recommendation;
+  if (sessionIdOrSlug === "best-next" && recommendation.selected.kind !== "due_review") {
+    const completedTodaySessions = await getCompletedPracticeSessionsSince(
+      viewer.id,
+      startOfDay(new Date()),
+    );
+    const completedTodayStructureKeys = new Set(
+      completedTodaySessions.map((row) => row.primaryStructure),
+    );
+
+    if (
+      recommendation.selected.structureKey &&
+      completedTodayStructureKeys.has(recommendation.selected.structureKey)
+    ) {
+      const nextAction = chooseNextCandidateAction(
+        recommendation.ranked.filter(
+          (action) => action.href !== recommendation.selected.href,
+        ),
+        completedTodayStructureKeys,
+        {
+          allowDueReview: (await getDueReviewItems(viewer.id)).length > 0,
+          allowCustomStructure: false,
+        },
+      );
+
+      effectiveRecommendation = {
+        ...recommendation,
+        selected: nextAction,
+      };
+    }
+  }
+
   const targetRecord =
     sessionIdOrSlug === "momentum-lab"
       ? chooseCustomStructure(records)
       : sessionIdOrSlug === "weakest-area"
         ? records[0]
-        : recommendation.selected.kind === "due_review"
+        : effectiveRecommendation.selected.kind === "due_review"
           ? null
           : records.find(
               (record) =>
-                record.structureKey === recommendation.selected.structureKey,
+                record.structureKey === effectiveRecommendation.selected.structureKey,
             ) ?? records[0];
 
   if (!targetRecord) {
@@ -1256,7 +2136,11 @@ export async function getOrCreatePracticeSession(
   }
 
   const unit = getStructureUnit(targetRecord.structureKey) ?? structureCatalog[0];
-  const blueprints = pickBlueprints(targetRecord.structureKey);
+  const blueprints = await pickBlueprintsForUser(
+    viewer.id,
+    targetRecord.structureKey,
+    "practice",
+  );
   const title =
     sessionIdOrSlug === "momentum-lab"
       ? `${unit.title} Lift`
@@ -1546,6 +2430,8 @@ export async function getDueReviewItems(userId: string): Promise<ReviewItem[]> {
   return rows.map((row) => ({
     id: row.id,
     structureKey: row.structureKey,
+    topicTitle: humanizeStructureKey(row.structureKey),
+    builderKind: getStructureUnit(row.structureKey)?.builderKind ?? "grammar",
     prompt: row.prompt,
     targetLevel: masteryByKey.get(row.structureKey) ?? "B1",
     dueAt: row.dueAt.toISOString(),
@@ -1641,6 +2527,7 @@ async function getLatestDecisionLog(
 export async function getDashboardSnapshot(
   viewer: Viewer,
 ): Promise<DashboardSnapshot | null> {
+  const database = requireDb();
   const profile = await getProfileRow(viewer.id);
   const assessment = await getLatestAssessment(viewer.id);
   if (!profile || !assessment) {
@@ -1669,12 +2556,158 @@ export async function getDashboardSnapshot(
   );
   const league = await getLeagueSnapshot(viewer);
   const levels = levelFromProfile(profile);
+  const now = new Date();
+  const week = currentWeekWindow(now);
+  const lookbackStart = subDays(now, 14);
+  const recommendedStructureKey =
+    recommendation.selected.structureKey ??
+    reviewQueue[0]?.structureKey ??
+    weakestStructure.structureKey;
+  const focusRecord =
+    mastery.find((record) => record.structureKey === recommendedStructureKey) ??
+    weakestStructure;
+  const focusUnit =
+    getStructureUnit(recommendedStructureKey) ??
+    getStructureUnit(focusRecord.structureKey) ??
+    structureCatalog[0];
+
+  const [weekSessions, responseRows14, todayCompletedSessions] = await Promise.all([
+    database
+      .select()
+      .from(practiceSessions)
+      .where(
+        and(
+          eq(practiceSessions.userId, viewer.id),
+          gte(practiceSessions.createdAt, week.startsAt),
+          lte(practiceSessions.createdAt, week.endsAt),
+        ),
+      ),
+    database
+      .select()
+      .from(userResponses)
+      .where(
+        and(
+          eq(userResponses.userId, viewer.id),
+          gte(userResponses.createdAt, lookbackStart),
+        ),
+      ),
+    getCompletedPracticeSessionsSince(viewer.id, startOfDay(now)),
+  ]);
+
+  const latestAttempts14d = collapseToLatestAttempts(responseRows14);
+  const responseIds = latestAttempts14d.map((row) => row.id);
+  const responseSessionIds = [...new Set(latestAttempts14d.map((row) => row.sessionId))];
+  const [responseSessions, errorRows14, feedbackRows14] = await Promise.all([
+    responseSessionIds.length
+      ? database
+          .select()
+          .from(practiceSessions)
+          .where(inArray(practiceSessions.id, responseSessionIds))
+      : Promise.resolve([]),
+    responseIds.length
+      ? database
+          .select()
+          .from(errorEvents)
+          .where(inArray(errorEvents.responseId, responseIds))
+      : Promise.resolve([]),
+    responseIds.length
+      ? database
+          .select()
+          .from(feedbackEvents)
+          .where(inArray(feedbackEvents.responseId, responseIds))
+      : Promise.resolve([]),
+  ]);
+
+  const sessionById = new Map(
+    [...weekSessions, ...responseSessions].map((row) => [row.id, row]),
+  );
+  const sessionModeById = new Map(
+    responseSessions.map((row) => [row.id, row.mode as PracticeSession["mode"]]),
+  );
+  const repeatedByResponseId = new Map<string, boolean>();
+  for (const row of errorRows14) {
+    repeatedByResponseId.set(
+      row.responseId,
+      (repeatedByResponseId.get(row.responseId) ?? false) || row.repeatedError,
+    );
+  }
+  const feedbackByResponseId = new Map(
+    feedbackRows14.map((row) => [row.responseId, row]),
+  );
+  const weekAttempts = latestAttempts14d.filter(
+    (row) => row.createdAt >= week.startsAt && row.createdAt <= week.endsAt,
+  );
+  const todayCompletedStructureKeys = new Set(
+    todayCompletedSessions.map((session) => session.primaryStructure),
+  );
+  const selectedStructureKey = recommendation.selected.structureKey;
+  const missionAlreadyCompletedToday =
+    recommendation.selected.kind !== "due_review" &&
+    (selectedStructureKey
+      ? todayCompletedStructureKeys.has(selectedStructureKey)
+      : false);
+  const alternateMissionAction = missionAlreadyCompletedToday
+    ? chooseNextCandidateAction(
+        recommendation.ranked.filter(
+          (action) => action.href !== recommendation.selected.href,
+        ),
+        todayCompletedStructureKeys,
+        {
+          allowDueReview: reviewQueue.length > 0,
+          allowCustomStructure: false,
+        },
+      )
+    : undefined;
+  const reviewHref = reviewQueue.length ? "/practice/review-due" : "/review";
+  const todayMission = buildTodayMission(
+    recommendation.selected,
+    focusUnit,
+    reviewQueue.length,
+    missionAlreadyCompletedToday,
+    alternateMissionAction,
+  );
+  const whyNow = buildWhyNowCopy(focusRecord, reviewQueue, focusUnit);
+  const progressProof = buildProgressProof(
+    mastery,
+    latestAttempts14d,
+    sessionModeById,
+    repeatedByResponseId,
+  );
+  const recentWin = buildRecentWin(
+    latestAttempts14d,
+    sessionById,
+    feedbackByResponseId,
+  );
+  const practiceCoverage = buildPracticeCoverage(
+    weekSessions,
+    weekAttempts,
+    sessionById,
+  );
+  const learningMapSummary = buildLearningMapSummary(
+    mastery,
+    reviewQueue,
+    reviewHref,
+    recommendation.selected.kind === "due_review"
+      ? "/practice/review-due"
+      : recommendation.selected.href,
+  );
+  const nextUnlock = buildNextUnlock(
+    mastery,
+    reviewQueue,
+    reviewHref,
+    recommendation.selected.kind === "due_review"
+      ? "/practice/review-due"
+      : recommendation.selected.href,
+  );
+  const reviewPressure = buildReviewPressure(reviewQueue, mastery);
+  const leagueMini = buildLeagueMini(league);
+  const buildersHub = await getBuildersHubSnapshot(viewer);
 
   return {
     viewer,
     overallLevel: levels.overallLevel,
-    currentFocus: weakestStructure.title,
-    currentFocusReason: recommendation.selected.reason,
+    currentFocus: focusRecord.title,
+    currentFocusReason: whyNow.support,
     dueReviewCount: reviewQueue.length,
     weeklyLearningScore: buildWeeklyLearningScore(mastery),
     mostImprovedArea:
@@ -1694,6 +2727,19 @@ export async function getDashboardSnapshot(
     skillSnapshots,
     decisionLog,
     league,
+    todayMission,
+    whyNow,
+    progressProof,
+    recentWin,
+    practiceCoverage,
+    learningMapSummary,
+    nextUnlock,
+    reviewPressure,
+    leagueMini,
+    builderQuickAccess: buildersHub.builderCards,
+    underPracticedAreas: buildersHub.underPracticedAreas,
+    continueLearning: buildersHub.continueLearning,
+    recentlyLearnedTopics: buildersHub.recentlyLearnedTopics,
   };
 }
 
@@ -1743,6 +2789,17 @@ export async function getProfileSnapshot(
   };
 }
 
+function buildSyntheticMetricTrend(current: number, spread = 0.16) {
+  return [
+    clamp(current - spread),
+    clamp(current - spread * 0.82),
+    clamp(current - spread * 0.58),
+    clamp(current - spread * 0.36),
+    clamp(current - spread * 0.18),
+    clamp(current),
+  ].map((value) => Math.round(value * 100));
+}
+
 export async function getProgressSnapshot(
   viewer: Viewer,
 ): Promise<ProgressSnapshot | null> {
@@ -1751,20 +2808,46 @@ export async function getProgressSnapshot(
     return null;
   }
 
+  const trendLength = Math.max(
+    0,
+    ...dashboard.skillSnapshots.map((skill) => skill.trend.length),
+  );
+  const overallTrend = Array.from({ length: trendLength }, (_, index) =>
+    Math.round(
+      average(
+        dashboard.skillSnapshots.map((skill) => (skill.trend[index] ?? 0) / 100),
+      ) * 100,
+    ),
+  );
+
   return {
-    overallTrend: dashboard.skillSnapshots.map((skill) => skill.trend.at(-1) ?? 0),
-    accuracyTrend: dashboard.masteryRecords
-      .slice(0, 6)
-      .map((record) => Math.round(record.firstTrySuccessRate14d * 100)),
-    repairTrend: dashboard.masteryRecords
-      .slice(0, 6)
-      .map((record) => Math.round(record.repairSuccessRate14d * 100)),
-    reviewTrend: dashboard.masteryRecords
-      .slice(0, 6)
-      .map((record) => Math.round(record.reviewSuccessRate30d * 100)),
-    repeatedErrorTrend: dashboard.masteryRecords
-      .slice(0, 6)
-      .map((record) => Math.round(record.repeatedErrorRate14d * 100)),
+    overallTrend,
+    accuracyTrend: buildSyntheticMetricTrend(
+      average(
+        dashboard.masteryRecords.map((record) => record.firstTrySuccessRate14d),
+      ),
+      0.18,
+    ),
+    repairTrend: buildSyntheticMetricTrend(
+      average(
+        dashboard.masteryRecords.map((record) => record.repairSuccessRate14d),
+      ),
+      0.16,
+    ),
+    reviewTrend: buildSyntheticMetricTrend(
+      average(
+        dashboard.masteryRecords.map((record) => record.reviewSuccessRate30d),
+      ),
+      0.14,
+    ),
+    repeatedErrorTrend: buildSyntheticMetricTrend(
+      average(
+        dashboard.masteryRecords.map((record) =>
+          clamp(1 - record.repeatedErrorRate14d),
+        ),
+      ),
+      0.12,
+    ),
     structureMap: [...dashboard.masteryRecords].sort(
       (left, right) => right.masteryDelta7d - left.masteryDelta7d,
     ),

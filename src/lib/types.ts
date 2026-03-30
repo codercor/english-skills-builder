@@ -1,5 +1,10 @@
 export type LevelBand = "A2" | "B1" | "B2" | "C1";
 export type SkillArea = "grammar" | "vocabulary" | "sentence_building";
+export type BuilderKind =
+  | "grammar"
+  | "vocabulary"
+  | "phrase_idiom"
+  | "sentence";
 export type PracticeLane =
   | "Foundation"
   | "Controlled Production"
@@ -41,6 +46,7 @@ export type RecommendationKind =
   | "custom_structure"
   | "recalibration";
 export type SessionMode = "practice" | "review";
+export type LearningMode = "learn" | "practice" | "review" | "challenge";
 export type UserFacingStage =
   | "Needs work"
   | "Improving"
@@ -48,6 +54,13 @@ export type UserFacingStage =
   | "Strong"
   | "Needs review"
   | "Close to moving up";
+export type TopicState =
+  | "not_started"
+  | "learning"
+  | "improving"
+  | "unstable"
+  | "stable"
+  | "strong";
 
 export interface StructureUnit {
   key: string;
@@ -55,9 +68,20 @@ export interface StructureUnit {
   family: string;
   description: string;
   skillArea: SkillArea;
+  builderKind: BuilderKind;
   baseLevel: LevelBand;
   supportObjective: string;
+  categoryPath: string[];
+  teachingSummary: string;
+  whenToUse: string;
+  whenNotToUse: string;
+  examples: string[];
+  commonMistakes: string[];
+  prerequisiteKeys: string[];
+  relatedKeys: string[];
 }
+
+export type LearningTopic = StructureUnit;
 
 export interface CandidateAction {
   kind: RecommendationKind;
@@ -130,6 +154,9 @@ export interface PracticeSession {
   title: string;
   description: string;
   mode: SessionMode;
+  learningMode: LearningMode;
+  builderKind: BuilderKind;
+  topicKey: string;
   primaryStructure: string;
   supportObjective: string;
   targetLevel: LevelBand;
@@ -141,6 +168,8 @@ export interface PracticeSession {
 export interface ReviewItem {
   id: string;
   structureKey: string;
+  topicTitle: string;
+  builderKind: BuilderKind;
   prompt: string;
   targetLevel: LevelBand;
   dueAt: string;
@@ -277,6 +306,255 @@ export interface LeagueSnapshot {
   bossSessionReady: boolean;
 }
 
+export interface TodayMissionSnapshot {
+  title: string;
+  technicalLabel: string;
+  modeLabel: string;
+  targetLevel: LevelBand;
+  promptCount: number;
+  successDefinition: string;
+  note: string;
+  primaryAction: {
+    label: string;
+    href: string;
+  };
+  secondaryActions: Array<{
+    label: string;
+    href: string;
+  }>;
+}
+
+export interface WhyNowSnapshot {
+  whatKeepsSlipping: string;
+  whatThisImproves: string;
+  support: string;
+}
+
+export interface ProgressProofItem {
+  id: string;
+  label: string;
+  value: string;
+  note: string;
+}
+
+export interface ProgressProofSnapshot {
+  items: ProgressProofItem[];
+  fallbackTitle?: string;
+  fallbackBody?: string;
+}
+
+export interface RecentWinSnapshot {
+  structureTitle: string;
+  beforeText: string;
+  afterText: string;
+  note: string;
+}
+
+export interface PracticeCoverageSnapshot {
+  practiceSessions: number;
+  reviewItems: number;
+  topicsTouched: number;
+  recentTopics: string[];
+  builderCounts: Array<{
+    builderKind: BuilderKind;
+    label: string;
+    count: number;
+  }>;
+}
+
+export interface LearningMapSummaryItem {
+  label: "Needs attention" | "Improving now" | "Strongest area";
+  structureTitle: string;
+  stageLabel: UserFacingStage;
+  note: string;
+  actionLabel: string;
+  actionHref: string;
+}
+
+export interface NextUnlockSnapshot {
+  structureTitle: string;
+  currentStageLabel: UserFacingStage;
+  nextStageLabel: UserFacingStage;
+  requirement: string;
+  note: string;
+  actionLabel: string;
+  actionHref: string;
+}
+
+export interface ReviewPressureSnapshot {
+  dueCount: number;
+  overdueCount: number;
+  nextStructureTitle: string | null;
+  note: string;
+  actionLabel: string;
+  actionHref: string;
+}
+
+export interface LeagueMiniSnapshot {
+  viewerRank: number;
+  totalMembers: number;
+  weeklyLearningScore: number;
+  movementLabel: string;
+  href: string;
+}
+
+export interface TopicProgressSnapshot {
+  topicKey: string;
+  builderKind: BuilderKind;
+  title: string;
+  family: string;
+  categoryPath: string[];
+  levelBand: LevelBand;
+  masteryScore: number;
+  state: TopicState;
+  stateLabel: string;
+  practiceSessions: number;
+  reviewSessions: number;
+  attempts: number;
+  firstTryAccuracy: number;
+  repairSuccess: number;
+  lastPracticedAt: string | null;
+  nextReviewAt: string | null;
+  reviewDueCount: number;
+  recommendedAction: LearningMode;
+  lastActionLabel: string;
+}
+
+export interface BuilderQuickAccessItem {
+  builderKind: BuilderKind;
+  title: string;
+  description: string;
+  learnedTopics: number;
+  activeTopics: number;
+  dueReviews: number;
+  weakestTopicTitle: string | null;
+  href: string;
+  recommendedHref: string;
+  continueHref: string;
+}
+
+export interface UnderPracticedAreaSnapshot {
+  builderKind: BuilderKind;
+  title: string;
+  note: string;
+  href: string;
+}
+
+export interface ContinueLearningSnapshot {
+  builderKind: BuilderKind;
+  title: string;
+  note: string;
+  href: string;
+}
+
+export interface LearnedTopicSnapshot {
+  topicKey: string;
+  title: string;
+  builderKind: BuilderKind;
+  stateLabel: string;
+  href: string;
+}
+
+export interface BuildersHubSnapshot {
+  builderCards: BuilderQuickAccessItem[];
+  continueLearning: ContinueLearningSnapshot[];
+  underPracticedAreas: UnderPracticedAreaSnapshot[];
+  recentlyLearnedTopics: LearnedTopicSnapshot[];
+}
+
+export interface BuilderCatalogSnapshot {
+  builderKind: BuilderKind;
+  title: string;
+  description: string;
+  spotlightTitle: string;
+  spotlightBody: string;
+  recommendedTopicKey: string | null;
+  recommendedTopicHref: string | null;
+  totalTopics: number;
+  practicedTopics: number;
+  dueReviews: number;
+  categories: Array<{
+    category: string;
+    topics: TopicProgressSnapshot[];
+  }>;
+}
+
+export interface TopicDetailSnapshot {
+  topic: StructureUnit;
+  progress: TopicProgressSnapshot;
+  relatedTopics: TopicProgressSnapshot[];
+  practiceHistory: TopicExerciseHistoryEntry[];
+  nextActions: Array<{
+    label: string;
+    href: string;
+  }>;
+}
+
+export interface TopicExerciseHistoryEntry {
+  id: string;
+  sessionId: string;
+  createdAt: string;
+  sessionTitle: string;
+  learningScore: number | null;
+  lane: PracticeLane;
+  mode: SessionMode;
+  prompt: string;
+  userResponse: string;
+  acceptedAnswer: string | null;
+  naturalRewrite: string | null;
+  feedbackSummary: string | null;
+  whyItWorks: string | null;
+  firstTrySuccess: boolean;
+  repairSuccess: boolean;
+  acceptedAnswerShown: boolean;
+  responseScore: number;
+}
+
+export interface LearningMapTopicPreview {
+  topicKey: string;
+  title: string;
+  builderKind: BuilderKind;
+  stateLabel: string;
+  masteryScore: number;
+  reviewDueCount: number;
+  lastPracticedAt: string | null;
+  nextReviewAt: string | null;
+  practiceSessions: number;
+  reviewSessions: number;
+  attempts: number;
+  firstTryAccuracy: number;
+  repairSuccess: number;
+  recentExercises: TopicExerciseHistoryEntry[];
+  href: string;
+}
+
+export interface LearningMapSnapshot {
+  rootLabel: string;
+  builders: Array<{
+    builderKind: BuilderKind;
+    title: string;
+    description: string;
+    practicedTopics: number;
+    totalTopics: number;
+  }>;
+  nodes: Array<{
+    id: string;
+    label: string;
+    kind: "root" | "builder" | "topic";
+    builderKind?: BuilderKind;
+    progress: number;
+    stateLabel: string;
+    reviewDue: boolean;
+    href?: string;
+  }>;
+  edges: Array<{
+    source: string;
+    target: string;
+    kind: "builder" | "prerequisite" | "related";
+  }>;
+  topicPreviews: LearningMapTopicPreview[];
+}
+
 export interface Viewer {
   id: string;
   name: string;
@@ -300,6 +578,19 @@ export interface DashboardSnapshot {
   skillSnapshots: SkillSnapshot[];
   decisionLog: DecisionLog;
   league: LeagueSnapshot;
+  todayMission: TodayMissionSnapshot;
+  whyNow: WhyNowSnapshot;
+  progressProof: ProgressProofSnapshot;
+  recentWin: RecentWinSnapshot | null;
+  practiceCoverage: PracticeCoverageSnapshot;
+  learningMapSummary: LearningMapSummaryItem[];
+  nextUnlock: NextUnlockSnapshot;
+  reviewPressure: ReviewPressureSnapshot;
+  leagueMini: LeagueMiniSnapshot;
+  builderQuickAccess: BuilderQuickAccessItem[];
+  underPracticedAreas: UnderPracticedAreaSnapshot[];
+  continueLearning: ContinueLearningSnapshot[];
+  recentlyLearnedTopics: LearnedTopicSnapshot[];
 }
 
 export interface ProfileSnapshot {

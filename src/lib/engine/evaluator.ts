@@ -40,19 +40,177 @@ export const assessmentEvaluationRequestSchema = z.object({
   ),
 });
 
+const BE_AUXILIARIES = new Set([
+  "am",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+]);
+
+function lexemeForms(token: string) {
+  const normalized = token.toLowerCase();
+  const forms = new Set([normalized]);
+
+  if (normalized.endsWith("ies") && normalized.length > 4) {
+    forms.add(`${normalized.slice(0, -3)}y`);
+  }
+
+  if (normalized.endsWith("es") && normalized.length > 4) {
+    forms.add(normalized.slice(0, -2));
+  }
+
+  if (normalized.endsWith("s") && normalized.length > 3) {
+    forms.add(normalized.slice(0, -1));
+  }
+
+  if (normalized.endsWith("ing") && normalized.length > 5) {
+    const stem = normalized.slice(0, -3);
+    forms.add(stem);
+    forms.add(`${stem}e`);
+  }
+
+  if (normalized.endsWith("ed") && normalized.length > 4) {
+    const stem = normalized.slice(0, -2);
+    forms.add(stem);
+    forms.add(`${stem}e`);
+
+    if (stem.endsWith("i")) {
+      forms.add(`${stem.slice(0, -1)}y`);
+    }
+  }
+
+  return forms;
+}
+
+function bestTokenMatchWeight(requiredToken: string, responseTokens: string[]) {
+  const requiredForms = lexemeForms(requiredToken);
+  let best = 0;
+
+  for (let index = 0; index < responseTokens.length; index += 1) {
+    const token = responseTokens[index];
+
+    if (token === requiredToken.toLowerCase()) {
+      return 1;
+    }
+
+    const tokenForms = lexemeForms(token);
+    const sharesLexeme = [...requiredForms].some((form) => tokenForms.has(form));
+
+    if (!sharesLexeme) {
+      continue;
+    }
+
+    const previousToken = responseTokens[index - 1];
+    const weakPassiveForm =
+      token.endsWith("ed") &&
+      Boolean(previousToken) &&
+      BE_AUXILIARIES.has(previousToken);
+
+    best = Math.max(best, weakPassiveForm ? 0.35 : 0.72);
+  }
+
+  return best;
+}
+
 function overlapScore(requiredTokens: string[], response: string) {
   const tokens = tokenize(response);
-  if (!tokens.length) {
+  if (!tokens.length || !requiredTokens.length) {
     return 0;
   }
 
-  const matched = requiredTokens.filter((token) => tokens.includes(token.toLowerCase()));
-  return matched.length / requiredTokens.length;
+  const weightedMatches = requiredTokens.reduce(
+    (sum, token) => sum + bestTokenMatchWeight(token, tokens),
+    0,
+  );
+
+  return weightedMatches / requiredTokens.length;
 }
 
 function findMissingTokens(requiredTokens: string[], response: string) {
   const tokens = tokenize(response);
-  return requiredTokens.filter((token) => !tokens.includes(token.toLowerCase()));
+  return requiredTokens.filter(
+    (token) => bestTokenMatchWeight(token, tokens) === 0,
+  );
+}
+
+function editDistance(left: string, right: string) {
+  if (left === right) {
+    return 0;
+  }
+
+  const matrix = Array.from({ length: left.length + 1 }, () =>
+    Array.from({ length: right.length + 1 }, () => 0),
+  );
+
+  for (let row = 0; row <= left.length; row += 1) {
+    matrix[row][0] = row;
+  }
+
+  for (let column = 0; column <= right.length; column += 1) {
+    matrix[0][column] = column;
+  }
+
+  for (let row = 1; row <= left.length; row += 1) {
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitutionCost = left[row - 1] === right[column - 1] ? 0 : 1;
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + substitutionCost,
+      );
+    }
+  }
+
+  return matrix[left.length][right.length];
+}
+
+function findPotentialTypo(item: PracticeItem, response: string) {
+  const responseTokens = tokenize(response);
+  const expectedTokens = [
+    ...item.evaluationRubric.requiredTokens,
+    ...tokenize(item.acceptedAnswer),
+    ...tokenize(item.naturalRewrite),
+  ]
+    .filter((token) => token.length >= 4)
+    .filter((token, index, array) => array.indexOf(token) === index);
+
+  for (const token of responseTokens) {
+    if (token.length < 4) {
+      continue;
+    }
+
+    if (expectedTokens.includes(token)) {
+      continue;
+    }
+
+    const sharesLexeme = expectedTokens.some(
+      (expected) => bestTokenMatchWeight(expected, [token]) > 0,
+    );
+    if (sharesLexeme) {
+      continue;
+    }
+
+    const closest = expectedTokens
+      .map((expected) => ({
+        expected,
+        distance: editDistance(token, expected),
+      }))
+      .filter(({ distance }) => distance > 0 && distance <= 2)
+      .sort((left, right) => left.distance - right.distance)[0];
+
+    if (closest) {
+      return {
+        actual: token,
+        expected: closest.expected,
+      };
+    }
+  }
+
+  return null;
 }
 
 export async function evaluatePracticeItem(
@@ -67,6 +225,7 @@ export async function evaluatePracticeItem(
 
   const coverage = overlapScore(item.evaluationRubric.requiredTokens, response);
   const missing = findMissingTokens(item.evaluationRubric.requiredTokens, response);
+  const potentialTypo = findPotentialTypo(item, response);
   const firstTryAccuracy = clamp(coverage);
   const repairSuccess = coverage >= 0.85 ? 1 : coverage >= 0.6 ? 0.65 : 0.25;
   const lowHintDependence = attemptNumber === 1 ? 1 : attemptNumber === 2 ? 0.65 : 0.35;
@@ -76,7 +235,9 @@ export async function evaluatePracticeItem(
       : item.evaluationRubric.severity === "medium"
         ? 1 - (1 - coverage) * 0.9
         : 1 - (1 - coverage) * 0.7;
-  const naturalnessQuality = response.trim().split(/\s+/).length >= 6 ? 0.8 : 0.62;
+  const naturalnessQuality = clamp(
+    (response.trim().split(/\s+/).length >= 6 ? 0.8 : 0.62) - (potentialTypo ? 0.12 : 0),
+  );
   const responseScore = calculateResponseScore({
     firstTryAccuracy,
     repairSuccess,
@@ -89,7 +250,12 @@ export async function evaluatePracticeItem(
     clamp((coverage * 0.7 + naturalnessQuality * 0.3) * (attemptNumber > 1 ? 0.92 : 1)),
   );
 
-  const isAccepted = coverage >= 0.8;
+  const isAccepted = coverage >= 0.8 && !potentialTypo;
+  const fallbackReason = potentialTypo
+    ? `Possible spelling or word-form issue: "${potentialTypo.actual}" looks closer to "${potentialTypo.expected}".${missing.length ? ` The sentence also still needs ${missing.slice(0, 2).join(" and ")}.` : ""}`
+    : missing.length
+      ? `${item.evaluationRubric.commonSlip} Missing or weak token(s): ${missing.slice(0, 2).join(", ")}.`
+      : `${item.evaluationRubric.commonSlip} The key idea is present, but the sentence form still needs tightening.`;
 
   return {
     itemId: item.id,
@@ -98,12 +264,17 @@ export async function evaluatePracticeItem(
       ? []
       : [
           {
-            text: missing.slice(0, 2).join(" ") || response.split(" ").slice(-3).join(" "),
-            reason: `${item.evaluationRubric.commonSlip} Missing or weak token(s): ${missing.slice(0, 2).join(", ")}.`,
+            text:
+              potentialTypo?.actual ??
+              (missing.slice(0, 2).join(" ") ||
+                response.split(" ").slice(-4).join(" ")),
+            reason: fallbackReason,
             severity: item.evaluationRubric.severity,
           },
         ],
-    errorTags: [item.evaluationRubric.errorTag],
+    errorTags: potentialTypo
+      ? [item.evaluationRubric.errorTag, "spelling_or_word_form"]
+      : [item.evaluationRubric.errorTag],
     hint1: item.hint1,
     hint2: item.hint2,
     acceptedAnswer: item.acceptedAnswer,

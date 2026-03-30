@@ -93,6 +93,7 @@ export async function evaluateWithLLM(
     "Return strict JSON that matches the provided schema exactly.",
     "Be conservative about acceptance. Only accept if the structure and meaning are good enough for the target level.",
     "Keep feedback concise, specific, and useful for self-repair.",
+    "If there is a spelling mistake, malformed word form, or obviously wrong surface form, call it out directly in highlightedSpans and errorTags.",
     JSON.stringify(
       {
         prompt: item.prompt,

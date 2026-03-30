@@ -1,5 +1,3 @@
-import { Badge } from "@/components/ui/badge";
-import { Surface } from "@/components/ui/surface";
 import { PracticeSessionClient } from "@/components/practice-session-client";
 import { SetupState } from "@/components/setup-state";
 import { getOrCreatePracticeSession, getWorkspaceStatus } from "@/lib/server/learning";
@@ -52,20 +50,5 @@ export default async function PracticeSessionPage({
     );
   }
 
-  return (
-    <div className="space-y-5">
-      <Surface className="hidden space-y-3 sm:block">
-        <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
-          connected practice loop
-        </Badge>
-        <p className="max-w-3xl text-sm leading-7 text-[color:var(--color-muted)]">
-          Every answer in this session updates the same production system: scoring, mastery, progression, review creation, recommendation ranking, and weekly learning score.
-        </p>
-      </Surface>
-      <p className="px-1 text-sm leading-7 text-[color:var(--color-muted)] sm:hidden">
-        Each answer updates scoring, mastery, review, and the next recommendation.
-      </p>
-      <PracticeSessionClient session={session} />
-    </div>
-  );
+  return <PracticeSessionClient session={session} />;
 }

@@ -10,7 +10,7 @@ function MetricGroup({
   items: Array<{ label: string; value: string; direction: string; note: string }>;
 }) {
   return (
-    <Surface className="space-y-4">
+    <Surface className="space-y-4 tonal-card">
       <h2 className="text-2xl font-semibold text-[color:var(--color-ink)]">
         {title}
       </h2>
@@ -18,7 +18,7 @@ function MetricGroup({
         {items.map((item) => (
           <div
             key={item.label}
-            className="rounded-3xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-4"
+            className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
           >
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-[color:var(--color-ink)]">
@@ -41,8 +41,8 @@ export default async function OpsPage() {
 
   return (
     <div className="space-y-5">
-      <Surface className="space-y-3">
-        <Badge className="bg-[rgba(255,107,76,0.12)] text-[color:var(--color-coral)]">
+      <Surface className="space-y-3 tonal-card">
+        <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
           admin ops
         </Badge>
         <h1 className="text-4xl font-semibold text-[color:var(--color-ink)]">

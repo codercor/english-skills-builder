@@ -100,12 +100,12 @@ export function AssessmentClient({
       {!result ? (
         <>
           {questions.map((question, index) => (
-            <Surface key={question.id} className="space-y-4">
+            <Surface key={question.id} className="space-y-4 tonal-card">
               <div className="flex items-center justify-between gap-3">
                 <Badge>
                   {index + 1}. {question.kind.replace("_", " ")}
                 </Badge>
-                <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+                <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
                   {question.targetLevel}
                 </Badge>
               </div>
@@ -142,7 +142,7 @@ export function AssessmentClient({
                   );
 
                   return (
-                    <div className="rounded-[24px] border border-[color:var(--color-line)] bg-white px-4 py-5">
+                    <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-5 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
                       <label
                         htmlFor={question.id}
                         className="block text-base leading-8 text-[color:var(--color-ink)]"
@@ -156,7 +156,7 @@ export function AssessmentClient({
                           }
                           placeholder="..."
                           aria-label={`Fill the blank for question ${index + 1}`}
-                          className="mx-2 inline-flex h-11 w-auto min-w-[5.5rem] rounded-xl border-[color:var(--color-teal)] bg-[rgba(33,186,168,0.06)] px-3 py-0 align-middle text-base font-semibold focus:ring-[rgba(33,186,168,0.16)]"
+                          className="mx-2 inline-flex h-11 w-auto min-w-[5.5rem] rounded-xl bg-[color:var(--color-soft)] px-3 py-0 align-middle text-base font-semibold shadow-[inset_0_0_0_1px_var(--color-line)] focus:ring-[rgba(15,76,92,0.08)] focus:shadow-[inset_0_0_0_1px_rgba(15,76,92,0.24),0_16px_34px_rgba(25,28,29,0.05)]"
                           style={{ width: `${inputWidth}px` }}
                         />
                         <span>{parsedPrompt.after}</span>
@@ -189,8 +189,8 @@ export function AssessmentClient({
           ) : null}
         </>
       ) : (
-        <Surface className="space-y-5">
-          <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+        <Surface className="space-y-5 tonal-card">
+          <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
             {mode === "recalibration" ? "Recalibration result" : "Placement result"}
           </Badge>
           <div>
@@ -202,24 +202,24 @@ export function AssessmentClient({
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Surface className="rounded-3xl p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">
                 Grammar control
               </p>
               <p className="mt-2 text-2xl font-semibold">{result.grammarControl}</p>
-            </Surface>
-            <Surface className="rounded-3xl p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+            </div>
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">
                 Vocabulary usage
               </p>
               <p className="mt-2 text-2xl font-semibold">{result.vocabularyUsage}</p>
-            </Surface>
-            <Surface className="rounded-3xl p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
+            </div>
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">
                 Sentence building
               </p>
               <p className="mt-2 text-2xl font-semibold">{result.sentenceBuilding}</p>
-            </Surface>
+            </div>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-semibold text-[color:var(--color-ink)]">
@@ -229,7 +229,7 @@ export function AssessmentClient({
               {result.topGrowthAreas.map((area) => (
                 <li
                   key={area}
-                  className="rounded-2xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-3 text-sm text-[color:var(--color-ink)]"
+                  className="rounded-[1.35rem] bg-[color:var(--color-panel)] px-4 py-3 text-sm text-[color:var(--color-ink)] shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
                 >
                   {area}
                 </li>

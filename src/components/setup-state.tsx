@@ -16,12 +16,12 @@ export function SetupState({
   actionLabel: string;
 }) {
   return (
-    <section className="overflow-hidden rounded-[36px] border border-[color:var(--color-coach-line)] bg-[color:var(--color-coach-paper)] p-6 shadow-[0_24px_60px_rgba(72,54,40,0.07)] sm:p-8">
-      <p className="inline-flex rounded-full bg-[color:var(--color-coach-highlight)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-coach-ink)]">
+    <section className="overflow-hidden rounded-[2.3rem] bg-[color:var(--color-soft)] p-6 shadow-[0_24px_60px_rgba(25,28,29,0.05)] sm:p-8">
+      <p className="inline-flex rounded-full bg-[color:var(--color-hint)] px-4 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.05rem] text-[color:var(--color-hint-ink)]">
         {badge}
       </p>
       <div className="mt-5 max-w-3xl">
-        <h1 className="text-3xl font-semibold text-[color:var(--color-coach-ink)] sm:text-[2.6rem]">
+        <h1 className="editorial-headline text-[color:var(--color-coach-ink)] sm:text-[2.8rem]">
           {title}
         </h1>
         <p className="mt-4 text-sm leading-7 text-[color:var(--color-coach-muted)]">
@@ -29,10 +29,7 @@ export function SetupState({
         </p>
       </div>
       <Link href={actionHref} className="mt-6 inline-flex">
-        <Button
-          size="lg"
-          className="bg-[color:var(--color-coach-ink)] text-white hover:bg-[color:var(--color-coach-clay)]"
-        >
+        <Button size="lg">
           {actionLabel}
           <ArrowRight className="ml-2 size-4" />
         </Button>

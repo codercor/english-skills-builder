@@ -1,36 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f1e9;
-  --foreground: #102133;
+  --background: #f8f9fa;
+  --foreground: #191c1d;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-ink: #102133;
-  --color-panel: #fffaf2;
-  --color-soft: #e8f2ef;
-  --color-line: rgba(16, 33, 51, 0.1);
-  --color-muted: #667586;
-  --color-teal: #21baa8;
-  --color-coral: #ff6b4c;
-  --color-gold: #f2bd4e;
-  --color-coach-paper: oklch(0.982 0.015 72);
-  --color-coach-panel: oklch(0.994 0.008 72);
-  --color-coach-ink: oklch(0.302 0.03 42);
-  --color-coach-muted: oklch(0.57 0.025 45);
-  --color-coach-line: color-mix(in oklab, var(--color-coach-ink) 14%, white);
-  --color-coach-clay: oklch(0.678 0.157 39);
-  --color-coach-clay-soft: color-mix(
-    in oklab,
-    var(--color-coach-clay) 16%,
-    var(--color-coach-paper)
-  );
-  --color-coach-sage: oklch(0.697 0.075 146);
-  --color-coach-sage-soft: color-mix(
-    in oklab,
-    var(--color-coach-sage) 14%,
-    var(--color-coach-paper)
-  );
-  --color-coach-highlight: oklch(0.874 0.055 78);
+  --color-ink: #191c1d;
+  --color-muted: #5f6768;
+  --color-primary: #003441;
+  --color-primary-container: #0f4c5c;
+  --color-teal: #0f4c5c;
+  --color-coral: #bf7a1b;
+  --color-gold: #dfb15f;
+  --color-surface: #f8f9fa;
+  --color-soft: #f3f4f5;
+  --color-panel: #ffffff;
+  --color-surface-bright: #f8f9fa;
+  --color-line: rgba(192, 200, 203, 0.15);
+  --color-line-strong: rgba(192, 200, 203, 0.28);
+  --color-success: #dce8df;
+  --color-success-ink: #294437;
+  --color-hint: #f0d6aa;
+  --color-hint-ink: #5f421d;
+  --color-error-soft: #f8dfdb;
+  --color-error-ink: #7e352c;
+  --color-glass: rgba(255, 255, 255, 0.7);
+  --color-coach-paper: var(--color-surface);
+  --color-coach-panel: var(--color-panel);
+  --color-coach-ink: var(--color-ink);
+  --color-coach-muted: var(--color-muted);
+  --color-coach-line: var(--color-line);
+  --color-coach-clay: var(--color-coral);
+  --color-coach-clay-soft: color-mix(in oklab, var(--color-coral) 14%, var(--color-surface));
+  --color-coach-sage: #56786d;
+  --color-coach-sage-soft: color-mix(in oklab, #56786d 10%, var(--color-surface));
+  --color-coach-highlight: var(--color-hint);
 }
 
 @theme inline {
@@ -50,10 +54,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-body), sans-serif;
+  line-height: 1.6;
   background-image:
-    radial-gradient(circle at top left, rgba(33, 186, 168, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(242, 189, 78, 0.14), transparent 28%),
-    linear-gradient(180deg, #fdf9f2 0%, #f6f1e9 100%);
+    radial-gradient(circle at 16% 0%, rgba(15, 76, 92, 0.1), transparent 26%),
+    radial-gradient(circle at 88% 4%, rgba(223, 177, 95, 0.16), transparent 28%),
+    linear-gradient(180deg, #fbfbfb 0%, #f8f9fa 100%);
 }
 
 h1,
@@ -61,7 +66,25 @@ h2,
 h3,
 h4 {
   font-family: var(--font-display), sans-serif;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+  font-weight: 700;
+}
+
+p,
+li {
+  line-height: 1.6;
+}
+
+*::selection {
+  background: #8a5318;
+  color: #fff8ec;
+  -webkit-text-fill-color: #fff8ec;
+}
+
+*::-moz-selection {
+  background: #8a5318;
+  color: #fff8ec;
 }
 
 a {
@@ -70,28 +93,62 @@ a {
 }
 
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border-radius: 999px;
-  padding: 0.65rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
+  padding: 0.72rem 1.05rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05rem;
+  text-transform: uppercase;
   color: var(--color-muted);
-  transition: 180ms ease;
+  transition: color 300ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 300ms
+    cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.7);
+.nav-link:hover,
+.nav-link:focus-visible {
+  background: color-mix(in oklab, var(--color-panel) 88%, transparent);
   color: var(--color-ink);
 }
 
-.hero-grid {
-  background-image:
-    linear-gradient(rgba(16, 33, 51, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 33, 51, 0.08) 1px, transparent 1px);
-  background-size: 38px 38px;
+.editorial-kicker {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05rem;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.glass-shell {
+  background: color-mix(in oklab, var(--color-panel) 70%, transparent);
+  backdrop-filter: blur(20px);
+}
+
+.tonal-card {
+  background: var(--color-panel);
+  box-shadow: 0 20px 40px rgba(25, 28, 29, 0.05);
+}
+
+.tonal-block {
+  background: var(--color-soft);
+}
+
+.editorial-display {
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+}
+
+.editorial-headline {
+  font-size: clamp(1.75rem, 4vw, 2.8rem);
+  line-height: 1.02;
+  letter-spacing: -0.05em;
 }
 
 .fade-up {
-  animation: fade-up 0.7s ease both;
+  animation: fade-up 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .pulse-orb {
@@ -145,5 +202,10 @@ a {
   .pulse-orb,
   .soft-float {
     animation: none;
+  }
+
+  * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
   }
 }

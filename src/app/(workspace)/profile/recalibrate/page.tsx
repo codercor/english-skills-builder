@@ -7,8 +7,8 @@ import { Surface } from "@/components/ui/surface";
 export default function RecalibrationPage() {
   return (
     <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-      <Surface className="space-y-4">
-        <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+      <Surface className="space-y-4 tonal-card">
+        <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
           recalibration
         </Badge>
         <h1 className="text-4xl font-semibold text-[color:var(--color-ink)]">
@@ -19,7 +19,7 @@ export default function RecalibrationPage() {
         </p>
       </Surface>
 
-      <Surface className="space-y-5">
+      <Surface className="space-y-5 tonal-card">
         <div className="grid gap-3 sm:grid-cols-2">
           {[
             "Best after 20 sessions",
@@ -29,7 +29,7 @@ export default function RecalibrationPage() {
           ].map((point) => (
             <div
               key={point}
-              className="rounded-3xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-4 text-sm text-[color:var(--color-ink)]"
+              className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 text-sm text-[color:var(--color-ink)] shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
             >
               {point}
             </div>

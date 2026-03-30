@@ -36,8 +36,8 @@ export default async function LeaguePage() {
 
   return (
     <div className="space-y-5">
-      <Surface className="space-y-4">
-        <Badge className="bg-[rgba(33,186,168,0.12)] text-[color:var(--color-teal)]">
+      <Surface className="space-y-4 tonal-card">
+        <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
           self-improvement first
         </Badge>
         <div>
@@ -51,7 +51,7 @@ export default async function LeaguePage() {
       </Surface>
 
       <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-        <Surface className="space-y-4">
+        <Surface className="space-y-4 tonal-card">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
@@ -67,7 +67,7 @@ export default async function LeaguePage() {
             {league.entries.map((entry) => (
               <div
                 key={`${entry.rank}-${entry.learner}`}
-                className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-3xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-4"
+                className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
               >
                 <p className="text-sm font-semibold text-[color:var(--color-ink)]">
                   #{entry.rank}
@@ -89,7 +89,7 @@ export default async function LeaguePage() {
         </Surface>
 
         <div className="grid gap-5">
-          <Surface className="space-y-4">
+          <Surface className="space-y-4 tonal-card">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
                 Improvement leaderboard
@@ -102,7 +102,7 @@ export default async function LeaguePage() {
               {league.improvementBoard.slice(0, 5).map((entry) => (
                 <div
                   key={`${entry.learner}-improvement`}
-                  className="rounded-3xl border border-[color:var(--color-line)] bg-[color:var(--color-panel)] px-4 py-4"
+                  className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-[color:var(--color-ink)]">
@@ -117,7 +117,7 @@ export default async function LeaguePage() {
             </div>
           </Surface>
 
-          <Surface className="space-y-4">
+          <Surface className="space-y-4 tonal-card">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
                 Structure cup
@@ -129,7 +129,7 @@ export default async function LeaguePage() {
             <p className="text-sm leading-7 text-[color:var(--color-muted)]">
               Cup points come from the same validated learning score, filtered to the current structure family. No separate currency, no disconnected grind.
             </p>
-            <Surface className="rounded-[28px] bg-[linear-gradient(135deg,#102133,#17354f)] p-5 text-white">
+            <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] p-5 text-white shadow-[0_24px_52px_rgba(25,28,29,0.1)]">
               <p className="text-sm font-semibold">
                 {league.bossSessionReady
                   ? "Boss session unlocked"
@@ -138,7 +138,7 @@ export default async function LeaguePage() {
               <p className="mt-2 text-sm leading-7 text-white/80">
                 When a structure family reaches stable mastery range, a mixed high-pressure drill unlocks and awards extra cup momentum.
               </p>
-            </Surface>
+            </div>
           </Surface>
         </div>
       </section>

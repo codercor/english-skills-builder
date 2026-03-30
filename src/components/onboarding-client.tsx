@@ -354,7 +354,7 @@ export function OnboardingClient({
           </p>
         </div>
 
-        <div className="rounded-[30px] border border-[color:var(--color-coach-line)] bg-white/78 p-5">
+        <div className="rounded-[30px] bg-[color:var(--color-coach-panel)] p-5 shadow-[0_18px_36px_rgba(25,28,29,0.04)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-coach-muted)]">
             Original sentence
           </p>
@@ -380,7 +380,7 @@ export function OnboardingClient({
               }
             }}
             placeholder="Type your repair here"
-            className="min-h-32 w-full rounded-[24px] border border-[color:var(--color-coach-line)] bg-white px-4 py-4 text-base leading-7 text-[color:var(--color-coach-ink)] outline-none transition placeholder:text-[color:var(--color-coach-muted)] focus:border-[color:var(--color-coach-clay)] focus:ring-2 focus:ring-[color:var(--color-coach-clay-soft)]"
+            className="min-h-32 w-full rounded-[24px] bg-[color:var(--color-coach-panel)] px-4 py-4 text-base leading-7 text-[color:var(--color-coach-ink)] outline-none shadow-[inset_0_0_0_1px_var(--color-line)] transition placeholder:text-[color:var(--color-coach-muted)] focus:ring-4 focus:ring-[rgba(15,76,92,0.08)] focus:shadow-[inset_0_0_0_1px_rgba(191,122,27,0.18),0_16px_34px_rgba(25,28,29,0.05)]"
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button
@@ -398,7 +398,7 @@ export function OnboardingClient({
 
           <div aria-live="polite" className="space-y-3">
           {warmupState === "hint" ? (
-            <div className="rounded-[26px] border border-[color:var(--color-coach-line)] bg-[color:var(--color-coach-highlight)] px-4 py-4">
+            <div className="rounded-[26px] bg-[color:var(--color-coach-highlight)] px-4 py-4">
               <p className="text-sm font-semibold text-[color:var(--color-coach-ink)]">
                 Coach note
               </p>
@@ -411,7 +411,7 @@ export function OnboardingClient({
           ) : null}
 
           {warmupState === "accepted" ? (
-            <div className="rounded-[26px] border border-[color:var(--color-coach-sage)] bg-[color:var(--color-coach-sage-soft)] px-4 py-4">
+            <div className="rounded-[26px] bg-[color:var(--color-coach-sage-soft)] px-4 py-4 shadow-[inset_0_0_0_1px_rgba(86,120,109,0.18)]">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[color:var(--color-coach-sage)]" />
                 <div className="min-w-0">
@@ -588,10 +588,10 @@ export function OnboardingClient({
             }))
           }
           aria-pressed={profile.ieltsIntent}
-          className={`w-full rounded-[26px] border px-4 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-coach-clay)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-coach-panel)] ${
+          className={`w-full rounded-[26px] px-4 py-4 text-left transition duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-coach-clay)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-coach-panel)] ${
             profile.ieltsIntent
-              ? "border-[color:var(--color-coach-clay)] bg-[color:var(--color-coach-clay-soft)]"
-              : "border-[color:var(--color-coach-line)] bg-white hover:border-[color:var(--color-coach-clay)]"
+              ? "bg-[color:var(--color-coach-clay-soft)] shadow-[inset_0_0_0_1px_rgba(191,122,27,0.18)]"
+              : "bg-[color:var(--color-coach-panel)] shadow-[inset_0_0_0_1px_var(--color-line)]"
           }`}
         >
           <p className="text-base font-semibold text-[color:var(--color-coach-ink)]">
@@ -608,7 +608,7 @@ export function OnboardingClient({
 
   if (!isEditing && savedProfile.completionState === "completed") {
     return (
-      <section className="overflow-hidden rounded-[40px] border border-[color:var(--color-coach-line)] bg-[color:var(--color-coach-paper)] p-6 shadow-[0_30px_80px_rgba(72,54,40,0.08)] sm:p-8">
+      <section className="overflow-hidden rounded-[40px] bg-[color:var(--color-coach-paper)] p-6 shadow-[0_30px_80px_rgba(25,28,29,0.06)] sm:p-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full bg-[color:var(--color-coach-clay-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-coach-ink)]">
@@ -628,7 +628,7 @@ export function OnboardingClient({
                 (item) => (
                   <span
                     key={item}
-                    className="rounded-full border border-[color:var(--color-coach-line)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--color-coach-ink)]"
+                    className="rounded-full bg-[color:var(--color-coach-panel)] px-4 py-2 text-sm font-semibold text-[color:var(--color-coach-ink)] shadow-[inset_0_0_0_1px_var(--color-line)]"
                   >
                     {item}
                   </span>
@@ -656,7 +656,7 @@ export function OnboardingClient({
             </div>
           </div>
 
-          <aside className="rounded-[32px] border border-[color:var(--color-coach-line)] bg-white/78 p-5">
+          <aside className="rounded-[32px] bg-[color:var(--color-coach-panel)] p-5 shadow-[0_18px_36px_rgba(25,28,29,0.04)]">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-coach-muted)]">
               Current coaching note
             </p>
@@ -674,7 +674,7 @@ export function OnboardingClient({
   }
 
   return (
-    <section className="overflow-hidden rounded-[40px] border border-[color:var(--color-coach-line)] bg-[color:var(--color-coach-paper)] p-5 shadow-[0_30px_80px_rgba(72,54,40,0.08)] sm:p-8">
+    <section className="overflow-hidden rounded-[40px] bg-[color:var(--color-coach-paper)] p-5 shadow-[0_30px_80px_rgba(25,28,29,0.06)] sm:p-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.18fr)_minmax(280px,0.82fr)]">
         <div className="min-w-0 space-y-8">
           <header className="space-y-5">
@@ -710,7 +710,7 @@ export function OnboardingClient({
             </p>
           ) : null}
 
-          <div className="flex flex-col gap-3 border-t border-[color:var(--color-coach-line)] pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 variant="secondary"
@@ -754,7 +754,7 @@ export function OnboardingClient({
           </div>
         </div>
 
-        <aside className="min-w-0 rounded-[32px] border border-[color:var(--color-coach-line)] bg-white/78 p-5">
+        <aside className="min-w-0 rounded-[32px] bg-[color:var(--color-coach-panel)] p-5 shadow-[0_18px_36px_rgba(25,28,29,0.04)]">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-coach-muted)]">
             Coach view
           </p>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter, Manrope } from "next/font/google";
+import "@xyflow/react/dist/style.css";
 import "./globals.css";
 
 const bodyFont = Inter({
@@ -7,13 +8,13 @@ const bodyFont = Inter({
   subsets: ["latin"],
 });
 
-const displayFont = Space_Grotesk({
+const displayFont = Manrope({
   variable: "--font-display",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "English Practice Structure Gym",
+  title: "English Practice",
   description:
     "Adaptive, structure-first English practice with self-repair, review, and mastery tracking.",
 };

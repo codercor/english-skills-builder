@@ -20,10 +20,10 @@ export function CoachChoiceCard({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "group flex min-h-24 w-full items-start justify-between gap-4 rounded-[24px] border px-4 py-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-coach-clay)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-coach-panel)]",
+        "group flex min-h-24 w-full items-start justify-between gap-4 rounded-[24px] px-4 py-4 text-left transition duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-coach-clay)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-coach-panel)]",
         selected
-          ? "border-[color:var(--color-coach-clay)] bg-[color:var(--color-coach-clay-soft)]"
-          : "border-[color:var(--color-coach-line)] bg-[color:var(--color-coach-panel)] hover:border-[color:var(--color-coach-clay)] hover:bg-white",
+          ? "bg-[color:var(--color-coach-clay-soft)] shadow-[inset_0_0_0_1px_rgba(191,122,27,0.18),0_18px_36px_rgba(25,28,29,0.04)]"
+          : "bg-[color:var(--color-coach-panel)] shadow-[0_16px_32px_rgba(25,28,29,0.03)] hover:bg-[color:var(--color-surface-bright)]",
         className,
       )}
     >
@@ -37,10 +37,10 @@ export function CoachChoiceCard({
       </div>
       <span
         className={cn(
-          "mt-1 grid size-7 shrink-0 place-items-center rounded-full border transition",
+          "mt-1 grid size-7 shrink-0 place-items-center rounded-full transition",
           selected
-            ? "border-[color:var(--color-coach-clay)] bg-[color:var(--color-coach-clay)] text-[color:var(--color-coach-panel)]"
-            : "border-[color:var(--color-coach-line)] bg-white text-transparent group-hover:border-[color:var(--color-coach-clay)]",
+            ? "bg-[color:var(--color-coach-clay)] text-[color:var(--color-coach-panel)] shadow-[0_12px_24px_rgba(25,28,29,0.08)]"
+            : "bg-[color:var(--color-soft)] text-transparent group-hover:bg-[color:var(--color-coach-clay-soft)]",
         )}
       >
         <Check className="size-4" />
@@ -64,10 +64,10 @@ export function CoachTopicPill({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-coach-clay)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-coach-panel)]",
+        "min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-coach-clay)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-coach-panel)]",
         selected
-          ? "border-[color:var(--color-coach-sage)] bg-[color:var(--color-coach-sage-soft)] text-[color:var(--color-coach-ink)]"
-          : "border-[color:var(--color-coach-line)] bg-white text-[color:var(--color-coach-muted)] hover:border-[color:var(--color-coach-sage)] hover:text-[color:var(--color-coach-ink)]",
+          ? "bg-[color:var(--color-coach-sage-soft)] text-[color:var(--color-coach-ink)] shadow-[inset_0_0_0_1px_rgba(86,120,109,0.18)]"
+          : "bg-[color:var(--color-panel)] text-[color:var(--color-coach-muted)] shadow-[inset_0_0_0_1px_var(--color-line)] hover:text-[color:var(--color-coach-ink)]",
       )}
     >
       {label}
@@ -125,11 +125,8 @@ export function CoachSummaryRows({
 }) {
   return (
     <div className="space-y-4">
-      {rows.map((row) => (
-        <div
-          key={row.label}
-          className="border-b border-[color:var(--color-coach-line)] pb-4 last:border-b-0 last:pb-0"
-        >
+        {rows.map((row) => (
+        <div key={row.label} className="rounded-[1.2rem] bg-[color:var(--color-soft)] px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-coach-muted)]">
             {row.label}
           </p>

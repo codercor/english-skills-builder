@@ -1,3 +1,4 @@
+import { getStructureUnit } from "@/lib/catalog";
 import type { LevelBand, PracticeItem, PromptType } from "@/lib/types";
 
 export interface PracticeBlueprint {
@@ -1546,6 +1547,161 @@ const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
   ],
 };
 
+function pickKeywords(example: string) {
+  return example
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 3)
+    .slice(0, 3);
+}
+
+function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
+  const topic = getStructureUnit(structureKey);
+
+  if (!topic) {
+    return [];
+  }
+
+  const examples = topic.examples.slice(0, 3);
+  const fallbackExamples = examples.length
+    ? examples
+    : [`Use ${topic.title.toLowerCase()} in one clear sentence.`];
+  const keywordPool = pickKeywords(fallbackExamples[0] ?? topic.title);
+  const fallbackKeywords = keywordPool.length ? keywordPool : pickKeywords(topic.title);
+
+  return [
+    {
+      prompt: `Write one sentence that uses ${topic.title.toLowerCase()} in a real context from your life.`,
+      promptType: "memory_anchor",
+      structureKey,
+      levelBand: topic.baseLevel,
+      supportObjective: topic.supportObjective,
+      topic: topic.categoryPath.at(-1)?.toLowerCase() ?? topic.family.toLowerCase(),
+      memoryAnchor: true,
+      acceptedAnswer: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.`,
+      whyItWorks: topic.teachingSummary,
+      hint1: `Think about when ${topic.title.toLowerCase()} is most useful.`,
+      hint2: topic.whenToUse,
+      naturalRewrite:
+        fallbackExamples[1] ??
+        `${fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now`}, which makes the sentence feel more controlled.`,
+      levelUpVariants: [
+        { level: topic.baseLevel, text: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.` },
+        { level: topic.baseLevel === "A2" ? "B1" : topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.` },
+        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.` },
+      ],
+      evaluationRubric: {
+        requiredTokens: fallbackKeywords,
+        preferredPhrases: [topic.title.toLowerCase()],
+        errorTag: `${structureKey}_control`,
+        commonSlip: topic.commonMistakes[0] ?? `Losing control over ${topic.title.toLowerCase()} under pressure.`,
+        severity: "medium",
+      },
+    },
+    {
+      prompt: `Rewrite this more naturally with ${topic.title.toLowerCase()}: ${fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.`}`,
+      promptType: "rewrite",
+      structureKey,
+      levelBand: topic.baseLevel,
+      supportObjective: topic.supportObjective,
+      topic: topic.family.toLowerCase(),
+      memoryAnchor: false,
+      acceptedAnswer: fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.`,
+      whyItWorks: topic.whenToUse,
+      hint1: `Keep the idea, but make the ${topic.title.toLowerCase()} choice more controlled.`,
+      hint2: topic.commonMistakes[0] ?? `Watch for an awkward or too literal choice.`,
+      naturalRewrite: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.`,
+      levelUpVariants: [
+        { level: topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.` },
+        { level: "B2", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.` },
+        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.` },
+      ],
+      evaluationRubric: {
+        requiredTokens: fallbackKeywords,
+        errorTag: `${structureKey}_rewrite`,
+        commonSlip: topic.commonMistakes[1] ?? topic.commonMistakes[0] ?? `Breaking the pattern while rewriting.`,
+        severity: "medium",
+      },
+    },
+    {
+      prompt: `Use these ideas in one sentence: ${fallbackKeywords.join(", ")}.`,
+      promptType: "guided_generation",
+      structureKey,
+      levelBand: topic.baseLevel,
+      supportObjective: topic.supportObjective,
+      topic: topic.family.toLowerCase(),
+      memoryAnchor: false,
+      acceptedAnswer: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.`,
+      whyItWorks: `The sentence uses ${topic.title.toLowerCase()} with the intended focus instead of forcing it.`,
+      hint1: "Turn the key words into one connected idea.",
+      hint2: topic.whenNotToUse,
+      naturalRewrite: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.`,
+      levelUpVariants: [
+        { level: topic.baseLevel, text: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.` },
+        { level: "B2", text: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.` },
+        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.` },
+      ],
+      evaluationRubric: {
+        requiredTokens: fallbackKeywords,
+        errorTag: `${structureKey}_guided`,
+        commonSlip: topic.commonMistakes[0] ?? `The ideas stay disconnected instead of forming a usable sentence.`,
+        severity: "medium",
+      },
+    },
+    {
+      prompt: `Correct the weak sentence using ${topic.title.toLowerCase()}: This sentence needs more control.`,
+      promptType: "error_correction",
+      structureKey,
+      levelBand: topic.baseLevel,
+      supportObjective: topic.supportObjective,
+      topic: topic.family.toLowerCase(),
+      memoryAnchor: false,
+      acceptedAnswer: fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.`,
+      whyItWorks: `The correction fixes the main slip and keeps the sentence usable.`,
+      hint1: "The problem is not meaning. It is the language choice.",
+      hint2: topic.commonMistakes[0] ?? `Repair the part that sounds too weak or unnatural.`,
+      naturalRewrite: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.`,
+      levelUpVariants: [
+        { level: topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.` },
+        { level: "B2", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.` },
+        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.` },
+      ],
+      evaluationRubric: {
+        requiredTokens: fallbackKeywords,
+        errorTag: `${structureKey}_correction`,
+        commonSlip: topic.commonMistakes[0] ?? `The main mistake survives the correction.`,
+        severity: "high",
+      },
+    },
+    {
+      prompt: `Write one final sentence that proves you can use ${topic.title.toLowerCase()} in a more open context.`,
+      promptType: "free_production",
+      structureKey,
+      levelBand: topic.baseLevel,
+      supportObjective: topic.supportObjective,
+      topic: topic.family.toLowerCase(),
+      memoryAnchor: true,
+      acceptedAnswer: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.`,
+      whyItWorks: topic.supportObjective,
+      hint1: "Make the sentence personal or specific enough to feel real.",
+      hint2: `Use ${topic.title.toLowerCase()} in a context that sounds natural, not memorized.`,
+      naturalRewrite: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.`,
+      levelUpVariants: [
+        { level: topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.` },
+        { level: "B2", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.` },
+        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.` },
+      ],
+      evaluationRubric: {
+        requiredTokens: fallbackKeywords,
+        errorTag: `${structureKey}_free`,
+        commonSlip: topic.commonMistakes[2] ?? topic.commonMistakes[0] ?? `The open sentence still does not sound controlled.`,
+        severity: "medium",
+      },
+    },
+  ];
+}
+
 export function getPracticeBlueprints(structureKey: string) {
-  return practiceBlueprintBank[structureKey] ?? [];
+  return practiceBlueprintBank[structureKey] ?? createFallbackBlueprints(structureKey);
 }
