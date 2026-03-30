@@ -19,6 +19,13 @@ export type PromptType =
   | "memory_anchor"
   | "constraint_based"
   | "error_correction";
+export type PracticeInteractionType =
+  | "choice"
+  | "completion"
+  | "text"
+  | "hybrid_choice_text";
+export type PracticeFollowUpMode = "exact_rewrite" | "open_production";
+export type PracticeTaskStep = "recognition" | "follow_up" | "text";
 export type MasteryStage = "fragile" | "emerging" | "developing" | "stable";
 export type ProgressionState =
   | "locked"
@@ -61,6 +68,22 @@ export type TopicState =
   | "unstable"
   | "stable"
   | "strong";
+export type VocabularyTargetKind =
+  | "word"
+  | "collocation"
+  | "phrase_frame"
+  | "word_family";
+export type VocabularyRegister =
+  | "neutral"
+  | "spoken"
+  | "formal"
+  | "academic";
+export type VocabularyItemState =
+  | "new"
+  | "practising"
+  | "usable"
+  | "stable"
+  | "strong";
 
 export interface StructureUnit {
   key: string;
@@ -82,6 +105,41 @@ export interface StructureUnit {
 }
 
 export type LearningTopic = StructureUnit;
+
+export interface VocabularyTargetItem {
+  itemKey: string;
+  label: string;
+  kind: VocabularyTargetKind;
+  gloss: string;
+  register: VocabularyRegister;
+  naturalPairings: string[];
+  goodExample: string;
+  awkwardExample: string;
+  commonTrap: string;
+  familyForms?: string[];
+  substitutions?: string[];
+}
+
+export interface VocabularyItemProgress {
+  itemKey: string;
+  label: string;
+  kind: VocabularyTargetKind;
+  register: VocabularyRegister;
+  state: VocabularyItemState;
+  stateLabel: string;
+  confidenceLabel: string;
+  timesUsed: number;
+  successfulUses: number;
+  recognitionWins: number;
+  supportedUseWins: number;
+  independentUseWins: number;
+  reviewWins: number;
+  firstSeenAt: string | null;
+  lastUsedAt: string | null;
+  reviewDue: boolean;
+  lastIncorrectReason: string | null;
+  nextProofNeeded: string;
+}
 
 export interface CandidateAction {
   kind: RecommendationKind;
@@ -107,10 +165,52 @@ export interface HighlightedSpan {
   severity: "low" | "medium" | "high";
 }
 
+export type FeedbackIssueKind =
+  | "spelling_word_form"
+  | "grammar_structure"
+  | "tone_register"
+  | "word_choice"
+  | "naturalness_fluency";
+
+export interface FeedbackIssue {
+  kind: FeedbackIssueKind;
+  title: string;
+  summary: string;
+  severity: "low" | "medium" | "high";
+  fixFirst: boolean;
+  hint: string;
+}
+
+export interface ChoiceOption {
+  id: string;
+  text: string;
+}
+
+export interface RecognitionEvidence {
+  selectedChoiceId: string;
+  correctChoiceId: string;
+  choiceAttempts: number;
+  revealed: boolean;
+  correct: boolean;
+  score: number;
+}
+
+export interface RecognitionFeedbackCopy {
+  whatWentWrong: string;
+  why: string;
+  whatFitsInstead: string;
+}
+
 export interface FeedbackPayload {
   itemId: string;
   structureKey: string;
+  taskStep?: PracticeTaskStep;
+  itemResolved?: boolean;
+  opensFollowUp?: boolean;
+  recognitionEvidence?: RecognitionEvidence;
+  recognitionFeedback?: RecognitionFeedbackCopy;
   highlightedSpans: HighlightedSpan[];
+  issues: FeedbackIssue[];
   errorTags: string[];
   hint1: string;
   hint2: string;
@@ -129,6 +229,26 @@ export interface PracticeItem {
   id: string;
   prompt: string;
   promptType: PromptType;
+  interactionType?: PracticeInteractionType;
+  choiceOptions?: ChoiceOption[];
+  correctChoiceId?: string;
+  choiceFeedbackByOption?: Record<string, RecognitionFeedbackCopy>;
+  followUpPrompt?: string;
+  followUpPromptType?: PromptType;
+  followUpMode?: PracticeFollowUpMode;
+  followUpAcceptedAnswer?: string;
+  followUpWhyItWorks?: string;
+  followUpHint1?: string;
+  followUpHint2?: string;
+  followUpNaturalRewrite?: string;
+  followUpLevelUpVariants?: Array<{ level: LevelBand; text: string }>;
+  followUpEvaluationRubric?: {
+    requiredTokens: string[];
+    preferredPhrases?: string[];
+    errorTag: string;
+    commonSlip: string;
+    severity: "low" | "medium" | "high";
+  };
   structureKey: string;
   levelBand: LevelBand;
   supportObjective: string;
@@ -140,6 +260,12 @@ export interface PracticeItem {
   hint2: string;
   naturalRewrite: string;
   levelUpVariants: Array<{ level: LevelBand; text: string }>;
+  variantId?: string;
+  variantLabel?: string;
+  targetItems?: VocabularyTargetItem[];
+  targetItemKeys?: string[];
+  focusTargetItemKey?: string;
+  focusTargetItemLabel?: string;
   evaluationRubric: {
     requiredTokens: string[];
     preferredPhrases?: string[];
@@ -147,6 +273,15 @@ export interface PracticeItem {
     commonSlip: string;
     severity: "low" | "medium" | "high";
   };
+}
+
+export interface SessionMicroIntro {
+  title: string;
+  whatThisIs: string;
+  whenToUse: string;
+  commonTrap: string;
+  modelExamples: string[];
+  compact: boolean;
 }
 
 export interface PracticeSession {
@@ -162,7 +297,45 @@ export interface PracticeSession {
   targetLevel: LevelBand;
   lane: PracticeLane;
   focusReason: string;
+  microIntro: SessionMicroIntro | null;
+  targetItems?: Array<
+    VocabularyTargetItem & {
+      currentEvidenceState?: VocabularyItemState;
+      currentEvidenceLabel?: string;
+      confidenceLabel?: string;
+      nextProofNeeded?: string;
+      nextCheck?: string;
+      teachingWeight?: "high" | "medium" | "low";
+    }
+  >;
   items: PracticeItem[];
+}
+
+export interface PracticeSessionProofSnapshot {
+  structureTitle: string;
+  beforeText: string;
+  afterText: string;
+}
+
+export interface PracticeSessionAction {
+  label: string;
+  href: string;
+  reason?: string;
+}
+
+export interface PracticeSessionSummary {
+  learningScore: number;
+  masteryDelta: number;
+  reviewItemsCreated: number;
+  streakChange: string;
+  leagueImpact: string;
+  recommendationTitle: string;
+  recommendationReason: string;
+  proofSnippet: PracticeSessionProofSnapshot | null;
+  improvedBecause: string;
+  stillSlips: string;
+  nextAction: PracticeSessionAction;
+  followUpActions: PracticeSessionAction[];
 }
 
 export interface ReviewItem {
@@ -170,6 +343,8 @@ export interface ReviewItem {
   structureKey: string;
   topicTitle: string;
   builderKind: BuilderKind;
+  targetItemLabel?: string | null;
+  sourceLabel?: string;
   prompt: string;
   targetLevel: LevelBand;
   dueAt: string;
@@ -416,6 +591,11 @@ export interface TopicProgressSnapshot {
   lastPracticedAt: string | null;
   nextReviewAt: string | null;
   reviewDueCount: number;
+  learnedItemsCount?: number;
+  stableItemsCount?: number;
+  dueItemCards?: number;
+  unprovenItemsCount?: number;
+  recentLearnedItems?: string[];
   recommendedAction: LearningMode;
   lastActionLabel: string;
 }
@@ -425,8 +605,10 @@ export interface BuilderQuickAccessItem {
   title: string;
   description: string;
   learnedTopics: number;
+  learnedItems?: number;
   activeTopics: number;
   dueReviews: number;
+  dueItemCards?: number;
   weakestTopicTitle: string | null;
   href: string;
   recommendedHref: string;
@@ -483,6 +665,9 @@ export interface TopicDetailSnapshot {
   topic: StructureUnit;
   progress: TopicProgressSnapshot;
   relatedTopics: TopicProgressSnapshot[];
+  targetItems: VocabularyTargetItem[];
+  vocabularyItemProgress: VocabularyItemProgress[];
+  dueReviewCards: ReviewItem[];
   practiceHistory: TopicExerciseHistoryEntry[];
   nextActions: Array<{
     label: string;
@@ -499,6 +684,7 @@ export interface TopicExerciseHistoryEntry {
   lane: PracticeLane;
   mode: SessionMode;
   prompt: string;
+  targetItemLabel: string | null;
   userResponse: string;
   acceptedAnswer: string | null;
   naturalRewrite: string | null;
@@ -524,6 +710,11 @@ export interface LearningMapTopicPreview {
   attempts: number;
   firstTryAccuracy: number;
   repairSuccess: number;
+  learnedItemsCount?: number;
+  stableItemsCount?: number;
+  dueItemCards?: number;
+  unprovenItemsCount?: number;
+  recentLearnedItems?: string[];
   recentExercises: TopicExerciseHistoryEntry[];
   href: string;
 }

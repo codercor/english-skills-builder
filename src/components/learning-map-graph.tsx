@@ -528,6 +528,39 @@ export function LearningMapGraph({
               </div>
             </div>
 
+            {selectedTopicPreview.builderKind === "vocabulary" ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                  <p className="editorial-kicker">Learned items</p>
+                  <p className="mt-3 text-lg font-semibold text-[color:var(--color-ink)]">
+                    {selectedTopicPreview.learnedItemsCount ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                  <p className="editorial-kicker">Stable items</p>
+                  <p className="mt-3 text-lg font-semibold text-[color:var(--color-ink)]">
+                    {selectedTopicPreview.stableItemsCount ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                  <p className="editorial-kicker">Due word cards</p>
+                  <p className="mt-3 text-lg font-semibold text-[color:var(--color-ink)]">
+                    {selectedTopicPreview.dueItemCards ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)] sm:col-span-3">
+                  <p className="editorial-kicker">Usage still unproven</p>
+                  <p className="mt-3 text-lg font-semibold text-[color:var(--color-ink)]">
+                    {selectedTopicPreview.unprovenItemsCount ?? 0} item
+                    {(selectedTopicPreview.unprovenItemsCount ?? 0) === 1 ? "" : "s"}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--color-muted)]">
+                    These are items you may recognize but have not yet used reliably enough to count as stable.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
               <p className="editorial-kicker">Recent practice summary</p>
               <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
@@ -540,6 +573,12 @@ export function LearningMapGraph({
                 {formatPercent(selectedTopicPreview.firstTryAccuracy)} first-try accuracy ·{" "}
                 {formatPercent(selectedTopicPreview.repairSuccess)} repair success
               </p>
+              {selectedTopicPreview.builderKind === "vocabulary" &&
+              selectedTopicPreview.recentLearnedItems?.length ? (
+                <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                  Recent items: {selectedTopicPreview.recentLearnedItems.join(" · ")}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-3">
@@ -567,6 +606,11 @@ export function LearningMapGraph({
                     <p className="mt-3 text-sm font-semibold leading-6 text-[color:var(--color-ink)]">
                       {entry.prompt}
                     </p>
+                    {entry.targetItemLabel ? (
+                      <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                        Target item: <span className="text-[color:var(--color-ink)]">{entry.targetItemLabel}</span>
+                      </p>
+                    ) : null}
                     <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
                       Your answer: <span className="text-[color:var(--color-ink)]">{entry.userResponse}</span>
                     </p>

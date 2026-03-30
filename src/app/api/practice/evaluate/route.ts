@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { evaluatePracticeItem, practiceEvaluationRequestSchema } from "@/lib/engine/evaluator";
+import { encodeStoredPracticeResponse } from "@/lib/practice-response";
 import { getAuthenticatedUser } from "@/lib/session";
 import { getOrCreatePracticeSession, storePracticeFeedback } from "@/lib/server/learning";
 
@@ -36,16 +37,30 @@ export async function POST(request: NextRequest) {
     item,
     parsed.data.response,
     parsed.data.attemptNumber,
+    {
+      interactionStep: parsed.data.interactionStep,
+      selectedChoiceId: parsed.data.selectedChoiceId,
+      recognitionEvidence: parsed.data.recognitionEvidence,
+    },
   );
-  await storePracticeFeedback({
-    viewer,
-    sessionId: session.id,
-    itemId: item.id,
-    attemptNumber: parsed.data.attemptNumber,
-    response: parsed.data.response,
-    responseLatencyMs: parsed.data.responseLatencyMs,
-    feedback,
-  });
+
+  if (parsed.data.interactionStep !== "recognition") {
+    await storePracticeFeedback({
+      viewer,
+      sessionId: session.id,
+      itemId: item.id,
+      attemptNumber: parsed.data.attemptNumber,
+      response: parsed.data.response,
+      normalizedResponse: parsed.data.response,
+      persistedResponse: encodeStoredPracticeResponse({
+        responseText: parsed.data.response,
+        recognitionEvidence: parsed.data.recognitionEvidence,
+      }),
+      acceptedAnswerShown: parsed.data.recognitionEvidence?.revealed ?? false,
+      responseLatencyMs: parsed.data.responseLatencyMs,
+      feedback,
+    });
+  }
 
   return NextResponse.json(feedback);
 }

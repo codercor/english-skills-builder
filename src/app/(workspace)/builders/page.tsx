@@ -77,15 +77,23 @@ export default async function BuildersHubPage() {
                 </p>
               </div>
               <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-                <p className="editorial-kicker">Weakest</p>
+                <p className="editorial-kicker">
+                  {builder.builderKind === "vocabulary" ? "Learned items" : "Weakest"}
+                </p>
                 <p className="mt-3 text-sm font-semibold text-[color:var(--color-ink)]">
-                  {builder.weakestTopicTitle ?? "Ready to explore"}
+                  {builder.builderKind === "vocabulary"
+                    ? `${builder.learnedItems ?? 0} usable words / chunks`
+                    : builder.weakestTopicTitle ?? "Ready to explore"}
                 </p>
               </div>
               <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-                <p className="editorial-kicker">Entry</p>
+                <p className="editorial-kicker">
+                  {builder.builderKind === "vocabulary" ? "Due word cards" : "Entry"}
+                </p>
                 <p className="mt-3 text-sm font-semibold text-[color:var(--color-ink)]">
-                  Direct topic library
+                  {builder.builderKind === "vocabulary"
+                    ? `${builder.dueItemCards ?? 0} item-level reviews`
+                    : "Direct topic library"}
                 </p>
               </div>
             </div>

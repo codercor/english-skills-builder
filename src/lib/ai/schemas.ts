@@ -45,6 +45,22 @@ export const feedbackPayloadSchema = z.object({
       severity: z.enum(["low", "medium", "high"]),
     }),
   ),
+  issues: z.array(
+    z.object({
+      kind: z.enum([
+        "spelling_word_form",
+        "grammar_structure",
+        "tone_register",
+        "word_choice",
+        "naturalness_fluency",
+      ]),
+      title: z.string(),
+      summary: z.string(),
+      severity: z.enum(["low", "medium", "high"]),
+      fixFirst: z.boolean(),
+      hint: z.string(),
+    }),
+  ),
   errorTags: z.array(z.string()),
   hint1: z.string(),
   hint2: z.string(),

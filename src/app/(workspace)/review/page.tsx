@@ -68,7 +68,8 @@ export default async function ReviewPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
-                    {item.builderKind.replace("_", " ")} · {item.source.replace("_", " ")}
+                    {item.builderKind.replace("_", " ")} · {(item.sourceLabel ?? item.source).replace("_", " ")}
+                    {item.targetItemLabel ? ` · ${item.targetItemLabel}` : ""}
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-[color:var(--color-ink)]">
                     {item.topicTitle}

@@ -1,9 +1,32 @@
 import { getStructureUnit } from "@/lib/catalog";
-import type { LevelBand, PracticeItem, PromptType } from "@/lib/types";
+import type {
+  ChoiceOption,
+  LevelBand,
+  PracticeItem,
+  PracticeFollowUpMode,
+  PracticeInteractionType,
+  PromptType,
+  RecognitionFeedbackCopy,
+  VocabularyTargetItem,
+} from "@/lib/types";
 
 export interface PracticeBlueprint {
   prompt: string;
   promptType: PromptType;
+  interactionType?: PracticeInteractionType;
+  choiceOptions?: ChoiceOption[];
+  correctChoiceId?: string;
+  choiceFeedbackByOption?: Record<string, RecognitionFeedbackCopy>;
+  followUpPrompt?: string;
+  followUpPromptType?: PromptType;
+  followUpMode?: PracticeFollowUpMode;
+  followUpAcceptedAnswer?: string;
+  followUpWhyItWorks?: string;
+  followUpHint1?: string;
+  followUpHint2?: string;
+  followUpNaturalRewrite?: string;
+  followUpLevelUpVariants?: PracticeItem["levelUpVariants"];
+  followUpEvaluationRubric?: PracticeItem["evaluationRubric"];
   structureKey: string;
   levelBand: LevelBand;
   supportObjective: string;
@@ -15,6 +38,12 @@ export interface PracticeBlueprint {
   hint2: string;
   naturalRewrite: string;
   levelUpVariants: Array<{ level: LevelBand; text: string }>;
+  variantId?: string;
+  variantLabel?: string;
+  targetItems?: VocabularyTargetItem[];
+  targetItemKeys?: string[];
+  focusTargetItemKey?: string;
+  focusTargetItemLabel?: string;
   evaluationRubric: PracticeItem["evaluationRubric"];
 }
 
@@ -277,8 +306,42 @@ const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
   ],
   "past-vs-present-perfect": [
     {
-      prompt: "Choose the more natural sentence and rewrite it correctly: I have seen her yesterday.",
+      prompt: "Which sentence fits the time marker more naturally?",
       promptType: "rewrite",
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        { id: "A", text: "I saw her yesterday." },
+        { id: "B", text: "I have seen her yesterday." },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong:
+            "The sentence keeps present perfect with a finished past time marker.",
+          why: "Yesterday closes the time window, so English moves to simple past here.",
+          whatFitsInstead: `Choose "I saw her yesterday." because the time is fully finished.`,
+        },
+      },
+      followUpPrompt: "Rewrite only the better sentence exactly before you move on.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: "I saw her yesterday.",
+      followUpWhyItWorks:
+        "You kept the finished-time marker and matched it with simple past.",
+      followUpHint1: "Keep the finished time marker and change only the tense choice.",
+      followUpHint2: "Yesterday blocks present perfect, so keep the verb in simple past.",
+      followUpNaturalRewrite: "I saw her yesterday, so I already know what she decided.",
+      followUpLevelUpVariants: [
+        { level: "B1", text: "I saw her yesterday." },
+        { level: "B2", text: "I saw her yesterday, so I already know what she decided." },
+        { level: "C1", text: "I saw her yesterday, which is why her reaction is still fresh in my mind." },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: ["saw", "yesterday"],
+        errorTag: "tense_time_conflict",
+        commonSlip: "Using present perfect with a finished past time marker.",
+        severity: "high",
+      },
       structureKey: "past-vs-present-perfect",
       levelBand: "B1",
       supportObjective: "Separate finished time from present relevance.",
@@ -1039,8 +1102,50 @@ const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
   ],
   "sentence-combining": [
     {
-      prompt: "Combine these ideas into one smoother sentence: I was busy. I still answered the message.",
+      prompt: "Which sentence combines the two ideas more smoothly?",
       promptType: "rewrite",
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        {
+          id: "A",
+          text: "Although I was busy, I still answered the message.",
+        },
+        {
+          id: "B",
+          text: "I was busy. I still answered the message.",
+        },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong:
+            "The ideas stay in two short clauses, so the relationship still feels flat.",
+          why: "This task wants one smoother sentence, not two separate statements.",
+          whatFitsInstead:
+            'Choose the version that uses a connector to merge the ideas into one sentence.',
+        },
+      },
+      followUpPrompt: "Rewrite only the smoother sentence exactly before you continue.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: "Although I was busy, I still answered the message.",
+      followUpWhyItWorks:
+        "You turned the contrast into one sentence with clearer flow.",
+      followUpHint1: "Keep one connector and one main clause.",
+      followUpHint2: "Use although to make one idea dependent and keep the action in the main clause.",
+      followUpNaturalRewrite:
+        "Although I was busy, I still answered the message because I knew it was urgent.",
+      followUpLevelUpVariants: [
+        { level: "B1", text: "Although I was busy, I still answered the message." },
+        { level: "B2", text: "Although I was busy, I still answered the message because I knew it was urgent." },
+        { level: "C1", text: "Although I was busy, I still answered the message, since delaying it would only have created more confusion." },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: ["although"],
+        errorTag: "sentence_combining",
+        commonSlip: "Keeping connected ideas in short separate clauses.",
+        severity: "medium",
+      },
       structureKey: "sentence-combining",
       levelBand: "B1",
       supportObjective: "Raise sentence complexity.",
@@ -1445,8 +1550,44 @@ const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
       },
     },
     {
-      prompt: "Rewrite this naturally: We took a decision after the discussion.",
+      prompt: "Which sentence uses the collocation more naturally?",
       promptType: "rewrite",
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        { id: "A", text: "We made a decision after the discussion." },
+        { id: "B", text: "We took a decision after the discussion." },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong:
+            "The noun is fine, but the verb still sounds translated rather than natural.",
+          why: 'Decision usually pairs with "make" in this chunk.',
+          whatFitsInstead:
+            'Choose "We made a decision after the discussion." to keep the collocation natural.',
+        },
+      },
+      followUpPrompt: "Rewrite only the better sentence exactly before moving on.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: "We made a decision after the discussion.",
+      followUpWhyItWorks:
+        "You kept the natural English chunk instead of the direct translation.",
+      followUpHint1: "Keep the noun decision, but switch to the natural verb.",
+      followUpHint2: "Think of the high-frequency chunk make a decision.",
+      followUpNaturalRewrite:
+        "We made a decision after the discussion and moved forward immediately.",
+      followUpLevelUpVariants: [
+        { level: "B1", text: "We made a decision after the discussion." },
+        { level: "B2", text: "We made a decision after the discussion and moved forward immediately." },
+        { level: "C1", text: "We made a decision after the discussion, which finally gave the team a clear direction." },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: ["made", "decision"],
+        errorTag: "collocation_choice",
+        commonSlip: "Choosing the wrong verb in a common phrase chunk.",
+        severity: "medium",
+      },
       structureKey: "collocations",
       levelBand: "B1",
       supportObjective: "Replace direct translation with natural chunks.",
@@ -1556,6 +1697,27 @@ function pickKeywords(example: string) {
     .slice(0, 3);
 }
 
+function expandExample(example: string, structureKey: string) {
+  const topic = getStructureUnit(structureKey);
+  const builderKind = topic?.builderKind ?? "grammar";
+  const trimmed = example.trim().replace(/[.!?]+$/, "");
+
+  if (!trimmed) {
+    return example;
+  }
+
+  const ending =
+    builderKind === "vocabulary"
+      ? "which makes the wording sound more deliberate."
+      : builderKind === "phrase_idiom"
+        ? "which makes the phrase sound more natural in context."
+        : builderKind === "sentence"
+          ? "which keeps the sentence more connected."
+          : "which keeps the form under better control.";
+
+  return `${trimmed}, ${ending}`;
+}
+
 function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
   const topic = getStructureUnit(structureKey);
 
@@ -1567,6 +1729,12 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
   const fallbackExamples = examples.length
     ? examples
     : [`Use ${topic.title.toLowerCase()} in one clear sentence.`];
+  const primaryExample = fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} in one clear sentence.`;
+  const secondaryExample = fallbackExamples[1] ?? primaryExample;
+  const tertiaryExample = fallbackExamples[2] ?? secondaryExample;
+  const primaryNatural = expandExample(primaryExample, structureKey);
+  const secondaryNatural = expandExample(secondaryExample, structureKey);
+  const tertiaryNatural = expandExample(tertiaryExample, structureKey);
   const keywordPool = pickKeywords(fallbackExamples[0] ?? topic.title);
   const fallbackKeywords = keywordPool.length ? keywordPool : pickKeywords(topic.title);
 
@@ -1579,17 +1747,15 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
       supportObjective: topic.supportObjective,
       topic: topic.categoryPath.at(-1)?.toLowerCase() ?? topic.family.toLowerCase(),
       memoryAnchor: true,
-      acceptedAnswer: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.`,
+      acceptedAnswer: primaryExample,
       whyItWorks: topic.teachingSummary,
       hint1: `Think about when ${topic.title.toLowerCase()} is most useful.`,
       hint2: topic.whenToUse,
-      naturalRewrite:
-        fallbackExamples[1] ??
-        `${fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now`}, which makes the sentence feel more controlled.`,
+      naturalRewrite: primaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.` },
-        { level: topic.baseLevel === "A2" ? "B1" : topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.` },
-        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more naturally now.` },
+        { level: topic.baseLevel, text: primaryExample },
+        { level: topic.baseLevel === "A2" ? "B1" : topic.baseLevel, text: primaryNatural },
+        { level: "C1", text: secondaryNatural },
       ],
       evaluationRubric: {
         requiredTokens: fallbackKeywords,
@@ -1607,15 +1773,15 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: false,
-      acceptedAnswer: fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.`,
+      acceptedAnswer: primaryExample,
       whyItWorks: topic.whenToUse,
       hint1: `Keep the idea, but make the ${topic.title.toLowerCase()} choice more controlled.`,
       hint2: topic.commonMistakes[0] ?? `Watch for an awkward or too literal choice.`,
-      naturalRewrite: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.`,
+      naturalRewrite: primaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.` },
-        { level: "B2", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.` },
-        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.` },
+        { level: topic.baseLevel, text: primaryExample },
+        { level: "B2", text: primaryNatural },
+        { level: "C1", text: secondaryNatural },
       ],
       evaluationRubric: {
         requiredTokens: fallbackKeywords,
@@ -1632,15 +1798,15 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: false,
-      acceptedAnswer: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.`,
+      acceptedAnswer: secondaryExample,
       whyItWorks: `The sentence uses ${topic.title.toLowerCase()} with the intended focus instead of forcing it.`,
       hint1: "Turn the key words into one connected idea.",
       hint2: topic.whenNotToUse,
-      naturalRewrite: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.`,
+      naturalRewrite: secondaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.` },
-        { level: "B2", text: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.` },
-        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} when the sentence needs more control.` },
+        { level: topic.baseLevel, text: secondaryExample },
+        { level: "B2", text: secondaryNatural },
+        { level: "C1", text: tertiaryNatural },
       ],
       evaluationRubric: {
         requiredTokens: fallbackKeywords,
@@ -1657,15 +1823,15 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: false,
-      acceptedAnswer: fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.`,
+      acceptedAnswer: secondaryExample,
       whyItWorks: `The correction fixes the main slip and keeps the sentence usable.`,
       hint1: "The problem is not meaning. It is the language choice.",
       hint2: topic.commonMistakes[0] ?? `Repair the part that sounds too weak or unnatural.`,
-      naturalRewrite: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.`,
+      naturalRewrite: secondaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.` },
-        { level: "B2", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.` },
-        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `This sentence now uses ${topic.title.toLowerCase()} with more control.` },
+        { level: topic.baseLevel, text: secondaryExample },
+        { level: "B2", text: secondaryNatural },
+        { level: "C1", text: tertiaryNatural },
       ],
       evaluationRubric: {
         requiredTokens: fallbackKeywords,
@@ -1682,15 +1848,15 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: true,
-      acceptedAnswer: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.`,
+      acceptedAnswer: tertiaryExample,
       whyItWorks: topic.supportObjective,
       hint1: "Make the sentence personal or specific enough to feel real.",
       hint2: `Use ${topic.title.toLowerCase()} in a context that sounds natural, not memorized.`,
-      naturalRewrite: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.`,
+      naturalRewrite: tertiaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.` },
-        { level: "B2", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.` },
-        { level: "C1", text: fallbackExamples[2] ?? fallbackExamples[1] ?? fallbackExamples[0] ?? `I can use ${topic.title.toLowerCase()} more confidently in open production.` },
+        { level: topic.baseLevel, text: tertiaryExample },
+        { level: "B2", text: tertiaryNatural },
+        { level: "C1", text: tertiaryNatural },
       ],
       evaluationRubric: {
         requiredTokens: fallbackKeywords,
@@ -1702,6 +1868,124 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
   ];
 }
 
+const builderVariantNotes = {
+  grammar: [
+    "",
+    "Keep the form accurate, not just close enough.",
+    "Aim for one clean version that would still hold in a real sentence.",
+    "Keep it natural without losing structural control.",
+  ],
+  vocabulary: [
+    "",
+    "Choose wording that sounds natural in real use.",
+    "Keep the collocation or register sharp, not generic.",
+    "Make the word choice feel usable, not memorized.",
+  ],
+  phrase_idiom: [
+    "",
+    "Use the phrase naturally, not literally.",
+    "Make the chunk sound like something a real speaker would choose.",
+    "Keep the expression fluent instead of over-explained.",
+  ],
+  sentence: [
+    "",
+    "Keep the ideas connected instead of list-like.",
+    "Aim for one sentence with better flow, not just more words.",
+    "Make the sentence sound controlled under pressure.",
+  ],
+} as const;
+
+const promptVariantNotes: Partial<Record<PromptType, string[]>> = {
+  memory_anchor: [
+    "",
+    "Keep it personal and specific.",
+    "Use a real detail instead of a generic example.",
+    "Make it sound like something you would actually say.",
+  ],
+  rewrite: [
+    "",
+    "Keep the meaning, but tighten the language.",
+    "Change the language, not the core idea.",
+    "Make the sentence sound more natural than literal.",
+  ],
+  guided_generation: [
+    "",
+    "Turn the ideas into one connected sentence.",
+    "Keep the sentence fluent instead of mechanical.",
+    "Use the ideas with clear flow, not as a list.",
+  ],
+  free_production: [
+    "",
+    "Keep the sentence concrete and believable.",
+    "Make the sentence sound natural, not like an exercise.",
+    "Write one version you could really use.",
+  ],
+  constraint_based: [
+    "",
+    "Use every constraint without sounding forced.",
+    "Keep the sentence connected while you use all the ideas.",
+    "Make the sentence feel natural even with the required pieces.",
+  ],
+  error_correction: [
+    "",
+    "Fix the sentence without changing the core meaning.",
+    "Repair the weak language choice, then keep it usable.",
+    "Correct only what needs fixing, then make it sound natural.",
+  ],
+  completion: [
+    "",
+    "Fill every blank with one natural choice.",
+    "Complete the whole sentence so the flow stays natural.",
+    "Use gap choices that still sound usable in real English.",
+  ],
+};
+
+function applyPromptVariant(
+  blueprint: PracticeBlueprint,
+  sessionSeed: number,
+  itemIndex: number,
+) {
+  const topic = getStructureUnit(blueprint.structureKey);
+  const builderKind = topic?.builderKind ?? "grammar";
+  const variantIndex = (sessionSeed + itemIndex) % 4;
+  const builderNote = builderVariantNotes[builderKind][variantIndex];
+  const promptNote = promptVariantNotes[blueprint.promptType]?.[variantIndex] ?? "";
+  const completionPrefixes = [
+    "Complete the sentence naturally:",
+    "Complete the sentence so it sounds natural:",
+    "Fill the gaps naturally:",
+    "Complete the sentence with natural English:",
+  ];
+  const prompt =
+    blueprint.interactionType === "hybrid_choice_text"
+      ? blueprint.prompt
+      : blueprint.promptType === "completion"
+      ? blueprint.prompt.replace(
+          /^Complete the sentence naturally:/i,
+          completionPrefixes[variantIndex] ?? completionPrefixes[0],
+        )
+      : (() => {
+          const suffix = [promptNote, builderNote].filter(Boolean).join(" ");
+          return suffix ? `${blueprint.prompt} ${suffix}` : blueprint.prompt;
+        })();
+
+  return {
+    ...blueprint,
+    prompt,
+    variantId: `${blueprint.structureKey}:${sessionSeed}:${itemIndex}`,
+    variantLabel: variantIndex === 0 ? "core" : `variant-${variantIndex}`,
+  };
+}
+
 export function getPracticeBlueprints(structureKey: string) {
   return practiceBlueprintBank[structureKey] ?? createFallbackBlueprints(structureKey);
+}
+
+export function getPracticeBlueprintVariants(
+  structureKey: string,
+  sessionSeed = 0,
+) {
+  return getPracticeBlueprints(structureKey).map((blueprint, index) =>
+    applyPromptVariant(blueprint, sessionSeed, index),
+  );
 }

@@ -74,9 +74,9 @@ export default async function TopicDetailPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {snapshot.nextActions.slice(0, 2).map((action) => (
+            {snapshot.nextActions.map((action, index) => (
               <Link key={action.label} href={action.href}>
-                <Button size="lg" variant={action.label === "Start 5-prompt lesson" ? "primary" : "secondary"}>
+                <Button size="lg" variant={index === 0 ? "primary" : "secondary"}>
                   {action.label}
                 </Button>
               </Link>
@@ -113,6 +113,136 @@ export default async function TopicDetailPage({
           </div>
         </div>
       </Surface>
+
+      {snapshot.topic.builderKind === "vocabulary" && snapshot.targetItems.length ? (
+        <section className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
+          <Surface className="tonal-card space-y-4">
+            <div>
+              <p className="editorial-kicker">Target items in this topic</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[color:var(--color-ink)]">
+                The words and chunks this topic is trying to make usable
+              </h2>
+            </div>
+            <div className="grid gap-3">
+              {snapshot.targetItems.map((item) => (
+                <div
+                  key={item.itemKey}
+                  className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{item.kind.replace("_", " ")}</Badge>
+                    <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
+                      {item.register}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-base font-semibold text-[color:var(--color-ink)]">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                    {item.gloss}
+                  </p>
+                  <div className="mt-3 space-y-2 text-sm leading-7">
+                    <p className="text-[color:var(--color-ink)]">
+                      <span className="font-semibold">Natural pairings:</span>{" "}
+                      {item.naturalPairings.join(" · ")}
+                    </p>
+                    <p className="text-[color:var(--color-muted)]">
+                      Good example: <span className="text-[color:var(--color-ink)]">{item.goodExample}</span>
+                    </p>
+                    <p className="text-[color:var(--color-muted)]">
+                      Common trap: {item.commonTrap}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Surface>
+
+          <div className="grid gap-5">
+            <Surface className="tonal-card space-y-4">
+              <div>
+                <p className="editorial-kicker">What you’ve already learned</p>
+                <h2 className="mt-2 text-2xl font-semibold text-[color:var(--color-ink)]">
+                  Which items are usable, stable, or still fragile
+                </h2>
+              </div>
+              <div className="grid gap-3">
+                {snapshot.vocabularyItemProgress.map((item) => (
+                  <div
+                    key={item.itemKey}
+                    className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[color:var(--color-ink)]">
+                          {item.label}
+                        </p>
+                        <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-muted)]">
+                          {item.stateLabel} · {item.register}
+                        </p>
+                        <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                          {item.confidenceLabel}
+                        </p>
+                      </div>
+                      <Badge>{item.successfulUses}/{item.timesUsed || 0} clean uses</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
+                      {item.lastUsedAt
+                        ? `Last used ${formatDateShort(item.lastUsedAt)}`
+                        : "Not used in a stored sentence yet."}
+                      {item.reviewDue ? " · Review due now" : ""}
+                    </p>
+                    {item.lastIncorrectReason ? (
+                      <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                        Last slip: {item.lastIncorrectReason}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                      Next proof needed:{" "}
+                      <span className="text-[color:var(--color-ink)]">{item.nextProofNeeded}</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Surface>
+
+            <Surface className="tonal-card space-y-4">
+              <div>
+                <p className="editorial-kicker">Due review cards</p>
+                <h2 className="mt-2 text-2xl font-semibold text-[color:var(--color-ink)]">
+                  Word cards waiting inside this topic
+                </h2>
+              </div>
+              {snapshot.dueReviewCards.length ? (
+                <div className="grid gap-3">
+                  {snapshot.dueReviewCards.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[color:var(--color-ink)]">
+                            {item.targetItemLabel}
+                          </p>
+                          <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                            {item.prompt}
+                          </p>
+                        </div>
+                        <Badge>{formatDateShort(item.dueAt)}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 text-sm leading-7 text-[color:var(--color-muted)] shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                  No word cards are due inside this topic right now.
+                </div>
+              )}
+            </Surface>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Surface className="tonal-card space-y-4">
@@ -201,6 +331,14 @@ export default async function TopicDetailPage({
                       </Badge>
                     </div>
                     <div className="mt-4 space-y-3 text-sm leading-7">
+                      {entry.targetItemLabel ? (
+                        <div>
+                          <p className="editorial-kicker">Target item</p>
+                          <p className="mt-1 text-[color:var(--color-ink)]">
+                            {entry.targetItemLabel}
+                          </p>
+                        </div>
+                      ) : null}
                       <div>
                         <p className="editorial-kicker">Prompt</p>
                         <p className="mt-1 text-[color:var(--color-ink)]">

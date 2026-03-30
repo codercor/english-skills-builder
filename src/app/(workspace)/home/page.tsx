@@ -364,9 +364,17 @@ export default async function HomePage() {
                     <p className="editorial-kicker">{item.title}</p>
                     <p className="mt-2 text-base font-semibold text-[color:var(--color-ink)]">
                       {item.learnedTopics} topics touched · {item.activeTopics} active
+                      {item.builderKind === "vocabulary" && item.learnedItems !== undefined
+                        ? ` · ${item.learnedItems} words/chunks used`
+                        : ""}
                     </p>
                     <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-muted)]">
-                      {item.dueReviews} due review · {item.weakestTopicTitle ?? "ready to explore"}
+                      {item.dueReviews} due review
+                      {item.builderKind === "vocabulary" && item.dueItemCards !== undefined
+                        ? ` · ${item.dueItemCards} due word cards`
+                        : ""}
+                      {" · "}
+                      {item.weakestTopicTitle ?? "ready to explore"}
                     </p>
                   </div>
                   <Link href={item.href}>

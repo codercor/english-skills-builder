@@ -8,6 +8,11 @@ import {
   getStructureUnit,
   structureCatalog,
 } from "@/lib/catalog";
+import {
+  getVocabularyTargetItems,
+  parseVocabularyReviewPrompt,
+} from "@/lib/data/vocabulary-targets";
+import { decodeStoredPracticeResponse } from "@/lib/practice-response";
 import { db } from "@/lib/db/client";
 import {
   feedbackEvents,
@@ -27,6 +32,8 @@ import type {
   TopicExerciseHistoryEntry,
   TopicDetailSnapshot,
   TopicProgressSnapshot,
+  VocabularyItemProgress,
+  VocabularyTargetItem,
   Viewer,
 } from "@/lib/types";
 import { average, formatDateShort, round } from "@/lib/utils";
@@ -100,7 +107,7 @@ function inferTopicState(params: {
 }
 
 function inferRecommendedAction(topic: TopicProgressSnapshot): LearningMode {
-  if (topic.reviewDueCount > 0) {
+  if (topic.reviewDueCount > 0 || (topic.dueItemCards ?? 0) > 0) {
     return "review";
   }
 
@@ -117,6 +124,413 @@ function inferRecommendedAction(topic: TopicProgressSnapshot): LearningMode {
   }
 
   return "practice";
+}
+
+function vocabularyItemStateLabel(state: VocabularyItemProgress["state"]) {
+  switch (state) {
+    case "new":
+      return "New";
+    case "practising":
+      return "Practising";
+    case "usable":
+      return "Usable";
+    case "stable":
+      return "Stable";
+    case "strong":
+      return "Strong";
+    default:
+      return "New";
+  }
+}
+
+function vocabularyConfidenceLabel(params: {
+  state: VocabularyItemProgress["state"];
+  timesUsed: number;
+  reviewWins: number;
+  independentUseWins: number;
+}) {
+  if (!params.timesUsed) {
+    return "Seen but not proven";
+  }
+
+  switch (params.state) {
+    case "strong":
+      return "Reliable in real use";
+    case "stable":
+      return params.reviewWins > 0 ? "Stable in review" : "Nearly stable";
+    case "usable":
+      return params.independentUseWins > 0 ? "Works in open use" : "Works with support";
+    case "practising":
+      return "Usage not proven";
+    case "new":
+    default:
+      return "Seen but not proven";
+  }
+}
+
+function vocabularyNextProofNeeded(params: {
+  item: VocabularyTargetItem;
+  timesUsed: number;
+  recognitionWins: number;
+  supportedUseWins: number;
+  independentUseWins: number;
+  reviewWins: number;
+  reviewDue: boolean;
+}) {
+  if (!params.timesUsed) {
+    return params.item.kind === "word_family"
+      ? "Recognize the right family form first."
+      : "Recognize the natural version first.";
+  }
+
+  if (!params.recognitionWins) {
+    return params.item.kind === "word_family"
+      ? "Pick the right family form under light pressure."
+      : "Recognize the more natural option first.";
+  }
+
+  if (!params.supportedUseWins) {
+    return params.item.kind === "word_family"
+      ? "Use the right family form in one supported sentence."
+      : `Use "${params.item.label}" in one supported sentence.`;
+  }
+
+  if (!params.independentUseWins) {
+    return params.item.kind === "word_family"
+      ? "Use the right family form without support in one new sentence."
+      : "Use this without support in one new sentence.";
+  }
+
+  if (params.reviewDue || !params.reviewWins) {
+    return "Survive one review.";
+  }
+
+  if (params.item.kind === "word_family") {
+    return "Switch forms cleanly in a harder sentence.";
+  }
+
+  if (params.item.register === "formal" || params.item.register === "academic") {
+    return "Keep the register clean in harder contexts.";
+  }
+
+  return "Reuse it naturally in a harder sentence.";
+}
+
+function inferVocabularyItemState(params: {
+  timesUsed: number;
+  successfulUses: number;
+  recognitionWins: number;
+  supportedUseWins: number;
+  independentUseWins: number;
+  reviewWins: number;
+  reviewDue: boolean;
+}) {
+  if (!params.timesUsed) {
+    return "new" as const;
+  }
+
+  const successRate = params.successfulUses / Math.max(1, params.timesUsed);
+
+  if (
+    successRate >= 0.86 &&
+    params.independentUseWins >= 2 &&
+    params.reviewWins >= 1 &&
+    !params.reviewDue
+  ) {
+    return "strong" as const;
+  }
+
+  if (
+    successRate >= 0.74 &&
+    params.independentUseWins >= 1 &&
+    (params.reviewWins >= 1 || params.reviewDue)
+  ) {
+    return "stable" as const;
+  }
+
+  if (
+    successRate >= 0.58 &&
+    (params.supportedUseWins >= 1 || params.independentUseWins >= 1)
+  ) {
+    return "usable" as const;
+  }
+
+  return "practising" as const;
+}
+
+export async function getVocabularyItemProgressMap(
+  viewer: Viewer,
+  options?: {
+    topicKeys?: string[];
+  },
+): Promise<Map<string, VocabularyItemProgress[]>> {
+  const database = requireDb();
+  const targetTopicKeys = (options?.topicKeys?.length
+    ? options.topicKeys
+    : structureCatalog
+        .filter((topic) => topic.builderKind === "vocabulary")
+        .map((topic) => topic.key)
+  ).filter((topicKey) => getVocabularyTargetItems(topicKey).length > 0);
+
+  const itemProgressByTopic = new Map<
+    string,
+    Map<string, Omit<VocabularyItemProgress, "state" | "stateLabel">>
+  >();
+
+  for (const topicKey of targetTopicKeys) {
+    const itemMap = new Map<string, Omit<VocabularyItemProgress, "state" | "stateLabel">>();
+    for (const item of getVocabularyTargetItems(topicKey)) {
+      itemMap.set(item.itemKey, {
+        itemKey: item.itemKey,
+        label: item.label,
+        kind: item.kind,
+        register: item.register,
+        timesUsed: 0,
+        successfulUses: 0,
+        recognitionWins: 0,
+        supportedUseWins: 0,
+        independentUseWins: 0,
+        reviewWins: 0,
+        firstSeenAt: null,
+        lastUsedAt: null,
+        reviewDue: false,
+        lastIncorrectReason: null,
+        confidenceLabel: "Seen but not proven",
+        nextProofNeeded:
+          item.kind === "word_family"
+            ? "Recognize the right family form first."
+            : "Recognize the natural version first.",
+      });
+    }
+    itemProgressByTopic.set(topicKey, itemMap);
+  }
+
+  if (!targetTopicKeys.length) {
+    return new Map();
+  }
+
+  const sessionRows = await database
+    .select()
+    .from(practiceSessions)
+    .where(
+      and(
+        eq(practiceSessions.userId, viewer.id),
+        inArray(practiceSessions.primaryStructure, targetTopicKeys),
+      ),
+    )
+    .orderBy(desc(practiceSessions.createdAt));
+
+  const sessionIds = sessionRows.map((row) => row.id);
+  const [itemRows, responseRows, dueRows] = await Promise.all([
+    sessionIds.length
+      ? database
+          .select()
+          .from(practiceItems)
+          .where(inArray(practiceItems.sessionId, sessionIds))
+      : Promise.resolve([]),
+    sessionIds.length
+      ? database
+          .select()
+          .from(userResponses)
+          .where(
+            and(
+              eq(userResponses.userId, viewer.id),
+              inArray(userResponses.sessionId, sessionIds),
+            ),
+          )
+          .orderBy(desc(userResponses.createdAt))
+      : Promise.resolve([]),
+    database
+      .select()
+      .from(reviewItems)
+      .where(
+        and(
+          eq(reviewItems.userId, viewer.id),
+          eq(reviewItems.status, "due"),
+          inArray(reviewItems.structureKey, targetTopicKeys),
+        ),
+      ),
+  ]);
+
+  const responseIds = responseRows.map((row) => row.id);
+  const feedbackRows = responseIds.length
+    ? await database
+        .select()
+        .from(feedbackEvents)
+        .where(inArray(feedbackEvents.responseId, responseIds))
+    : [];
+  const itemById = new Map(itemRows.map((row) => [row.id, row]));
+  const feedbackByResponseId = new Map(
+    feedbackRows.map((row) => [row.responseId, row]),
+  );
+  const latestByExercise = new Map<
+    string,
+    {
+      response: (typeof userResponses.$inferSelect);
+      item: (typeof practiceItems.$inferSelect);
+      feedback: (typeof feedbackEvents.$inferSelect) | undefined;
+    }
+  >();
+
+  for (const response of responseRows) {
+    const item = itemById.get(response.itemId);
+
+    if (!item) {
+      continue;
+    }
+
+    const exerciseKey = `${response.sessionId}:${response.itemId}`;
+    if (latestByExercise.has(exerciseKey)) {
+      continue;
+    }
+
+    latestByExercise.set(exerciseKey, {
+      response,
+      item,
+      feedback: feedbackByResponseId.get(response.id),
+    });
+  }
+
+  for (const entry of latestByExercise.values()) {
+    const metadata = entry.item.metadata as {
+      targetItems?: VocabularyItemProgress[];
+      targetItemKeys?: string[];
+      focusTargetItemKey?: string | null;
+      interactionType?: string | null;
+    };
+    const topicMap = itemProgressByTopic.get(entry.item.structureKey);
+
+    if (!topicMap) {
+      continue;
+    }
+
+    const targetItemKeys = metadata.targetItemKeys?.length
+      ? metadata.targetItemKeys
+      : metadata.focusTargetItemKey
+        ? [metadata.focusTargetItemKey]
+        : [];
+    const sessionMode =
+      sessionRows.find((row) => row.id === entry.response.sessionId)?.mode ?? "practice";
+    const primaryFeedback = Array.isArray(entry.feedback?.highlightedSpans)
+      ? (entry.feedback?.highlightedSpans as Array<{ reason?: string }>)[0]?.reason ?? null
+      : entry.feedback?.hint1 ?? null;
+    const decodedResponse = decodeStoredPracticeResponse(entry.response.rawUserResponse);
+
+    for (const itemKey of targetItemKeys) {
+      const current = topicMap.get(itemKey);
+
+      if (!current) {
+        continue;
+      }
+
+      current.timesUsed += 1;
+      if (
+        metadata.interactionType === "hybrid_choice_text" &&
+        decodedResponse.recognitionEvidence?.correct
+      ) {
+        current.recognitionWins += 1;
+      }
+      if (entry.response.responseScore >= 0.72) {
+        current.successfulUses += 1;
+        if (sessionMode === "review") {
+          current.reviewWins += 1;
+        } else if (metadata.interactionType === "hybrid_choice_text") {
+          current.supportedUseWins += 1;
+        } else if (entry.item.promptType === "rewrite") {
+          current.recognitionWins += 1;
+        } else if (
+          entry.item.promptType === "guided_generation" ||
+          entry.item.promptType === "error_correction"
+        ) {
+          current.supportedUseWins += 1;
+        } else {
+          current.independentUseWins += 1;
+        }
+      }
+      current.firstSeenAt =
+        !current.firstSeenAt || new Date(entry.response.createdAt) < new Date(current.firstSeenAt)
+          ? entry.response.createdAt.toISOString()
+          : current.firstSeenAt;
+      current.lastUsedAt =
+        !current.lastUsedAt || new Date(entry.response.createdAt) > new Date(current.lastUsedAt)
+          ? entry.response.createdAt.toISOString()
+          : current.lastUsedAt;
+
+      if (entry.response.responseScore < 0.72 && primaryFeedback) {
+        current.lastIncorrectReason = primaryFeedback;
+      }
+    }
+  }
+
+  for (const reviewRow of dueRows) {
+    const parsed = parseVocabularyReviewPrompt(reviewRow.prompt);
+    if (!parsed) {
+      continue;
+    }
+
+    const topicMap = itemProgressByTopic.get(reviewRow.structureKey);
+    const current = topicMap?.get(parsed.itemKey);
+    if (current) {
+      current.reviewDue = true;
+    }
+  }
+
+  return new Map(
+    [...itemProgressByTopic.entries()].map(([topicKey, itemMap]) => [
+      topicKey,
+      [...itemMap.values()]
+        .map((item) => {
+          const state = inferVocabularyItemState({
+            timesUsed: item.timesUsed,
+            successfulUses: item.successfulUses,
+            recognitionWins: item.recognitionWins,
+            supportedUseWins: item.supportedUseWins,
+            independentUseWins: item.independentUseWins,
+            reviewWins: item.reviewWins,
+            reviewDue: item.reviewDue,
+          });
+          const sourceItem = getVocabularyTargetItems(topicKey).find((candidate) => candidate.itemKey === item.itemKey);
+
+          return {
+            ...item,
+            state,
+            stateLabel: vocabularyItemStateLabel(state),
+            confidenceLabel: vocabularyConfidenceLabel({
+              state,
+              timesUsed: item.timesUsed,
+              reviewWins: item.reviewWins,
+              independentUseWins: item.independentUseWins,
+            }),
+            nextProofNeeded: sourceItem
+              ? vocabularyNextProofNeeded({
+                  item: sourceItem,
+                  timesUsed: item.timesUsed,
+                  recognitionWins: item.recognitionWins,
+                  supportedUseWins: item.supportedUseWins,
+                  independentUseWins: item.independentUseWins,
+                  reviewWins: item.reviewWins,
+                  reviewDue: item.reviewDue,
+                })
+              : "Use this naturally in one new sentence.",
+          } satisfies VocabularyItemProgress;
+        })
+        .sort((left, right) => {
+          if (left.lastUsedAt && right.lastUsedAt) {
+            return new Date(right.lastUsedAt).getTime() - new Date(left.lastUsedAt).getTime();
+          }
+
+          if (left.lastUsedAt && !right.lastUsedAt) {
+            return -1;
+          }
+
+          if (!left.lastUsedAt && right.lastUsedAt) {
+            return 1;
+          }
+
+          return right.successfulUses - left.successfulUses;
+        }),
+    ]),
+  );
 }
 
 async function getTopicExerciseHistoryMap(
@@ -220,6 +634,11 @@ async function getTopicExerciseHistoryMap(
   for (const entry of sortedEntries) {
     const topicKey = entry.session.primaryStructure;
     const current = grouped.get(topicKey) ?? [];
+    const primaryHighlight = Array.isArray(entry.feedback?.highlightedSpans)
+      ? (entry.feedback?.highlightedSpans as Array<{
+          reason?: string;
+        }>)[0]
+      : null;
 
     if (options?.limitPerTopic && current.length >= options.limitPerTopic) {
       continue;
@@ -234,10 +653,12 @@ async function getTopicExerciseHistoryMap(
       lane: entry.session.lane as TopicExerciseHistoryEntry["lane"],
       mode: entry.session.mode as TopicExerciseHistoryEntry["mode"],
       prompt: entry.item.prompt,
-      userResponse: entry.response.rawUserResponse,
+      targetItemLabel:
+        ((entry.item.metadata as { focusTargetItemLabel?: string | null })?.focusTargetItemLabel ?? null),
+      userResponse: decodeStoredPracticeResponse(entry.response.rawUserResponse).text,
       acceptedAnswer: entry.item.acceptedAnswer,
       naturalRewrite: entry.feedback?.naturalRewrite ?? null,
-      feedbackSummary: entry.feedback?.hint1 ?? null,
+      feedbackSummary: primaryHighlight?.reason ?? entry.feedback?.hint1 ?? null,
       whyItWorks: entry.feedback?.whyItWorks ?? null,
       firstTrySuccess: entry.response.firstTrySuccess,
       repairSuccess: entry.response.repairSuccess,
@@ -254,7 +675,7 @@ export async function getTopicProgressSnapshots(
   viewer: Viewer,
 ): Promise<TopicProgressSnapshot[]> {
   const database = requireDb();
-  const [masteryRows, sessionRows, reviewRows] = await Promise.all([
+  const [masteryRows, sessionRows, reviewRows, vocabularyItemProgressMap] = await Promise.all([
     database
       .select()
       .from(masteryRecords)
@@ -273,6 +694,7 @@ export async function getTopicProgressSnapshots(
           eq(reviewItems.status, "due"),
         ),
       ),
+    getVocabularyItemProgressMap(viewer),
   ]);
 
   const sessionIds = sessionRows.map((row) => row.id);
@@ -351,6 +773,7 @@ export async function getTopicProgressSnapshots(
     const mastery = masteryByKey.get(topic.key);
     const metrics = sessionMetricsByKey.get(topic.key);
     const attempts = metrics?.attempts ?? 0;
+    const vocabularyItemProgress = vocabularyItemProgressMap.get(topic.key) ?? [];
     const state = inferTopicState({
       attempts,
       masteryScore: mastery?.masteryScore ?? 0,
@@ -377,6 +800,18 @@ export async function getTopicProgressSnapshots(
       lastPracticedAt: metrics?.lastPracticedAt?.toISOString() ?? null,
       nextReviewAt: nextDueByKey.get(topic.key)?.toISOString() ?? null,
       reviewDueCount: dueCountsByKey.get(topic.key) ?? 0,
+      learnedItemsCount: vocabularyItemProgress.filter((item) => item.timesUsed > 0).length,
+      stableItemsCount: vocabularyItemProgress.filter((item) =>
+        ["stable", "strong"].includes(item.state),
+      ).length,
+      dueItemCards: vocabularyItemProgress.filter((item) => item.reviewDue).length,
+      unprovenItemsCount: vocabularyItemProgress.filter((item) =>
+        item.timesUsed > 0 && !["stable", "strong"].includes(item.state),
+      ).length,
+      recentLearnedItems: vocabularyItemProgress
+        .filter((item) => item.timesUsed > 0)
+        .slice(0, 3)
+        .map((item) => item.label),
       recommendedAction: "learn",
       lastActionLabel:
         metrics?.lastPracticedAt
@@ -451,8 +886,16 @@ export async function getBuildersHubSnapshot(
       title: builderMeta[builderKind].title,
       description: builderMeta[builderKind].description,
       learnedTopics: practicedTopics.length,
+      learnedItems:
+        builderKind === "vocabulary"
+          ? builderTopics.reduce((sum, topic) => sum + (topic.learnedItemsCount ?? 0), 0)
+          : undefined,
       activeTopics: activeTopics.length,
       dueReviews,
+      dueItemCards:
+        builderKind === "vocabulary"
+          ? builderTopics.reduce((sum, topic) => sum + (topic.dueItemCards ?? 0), 0)
+          : undefined,
       weakestTopicTitle: weakest?.title ?? null,
       href: `/builders/${builderRouteSegment(builderKind)}`,
       recommendedHref: weakest
@@ -583,14 +1026,16 @@ export async function getTopicDetailSnapshot(
   builderKind: BuilderKind,
   topicKey: string,
 ): Promise<TopicDetailSnapshot | null> {
+  const database = requireDb();
   const topic = getStructureUnit(topicKey);
   if (!topic || topic.builderKind !== builderKind) {
     return null;
   }
 
-  const [allProgress, historyByTopic] = await Promise.all([
+  const [allProgress, historyByTopic, vocabularyItemProgressMap] = await Promise.all([
     getTopicProgressSnapshots(viewer),
     getTopicExerciseHistoryMap(viewer, { topicKeys: [topicKey] }),
+    getVocabularyItemProgressMap(viewer, { topicKeys: [topicKey] }),
   ]);
   const progress =
     allProgress.find((entry) => entry.topicKey === topicKey) ?? null;
@@ -602,11 +1047,58 @@ export async function getTopicDetailSnapshot(
   const relatedTopics = allProgress.filter((entry) =>
     topic.relatedKeys.includes(entry.topicKey),
   );
+  const targetItems = getVocabularyTargetItems(topicKey);
+  const vocabularyItemProgress = vocabularyItemProgressMap.get(topicKey) ?? [];
+  const vocabularyProgressByLabel = new Map(
+    vocabularyItemProgress.map((item) => [item.label, item]),
+  );
+  const dueReviewCards =
+    builderKind === "vocabulary"
+      ? (
+          await database
+            .select()
+            .from(reviewItems)
+            .where(
+              and(
+                eq(reviewItems.userId, viewer.id),
+                eq(reviewItems.status, "due"),
+                eq(reviewItems.structureKey, topicKey),
+              ),
+            )
+            .orderBy(desc(reviewItems.dueAt))
+        )
+          .map((item) => {
+            const parsed = parseVocabularyReviewPrompt(item.prompt);
+            if (!parsed) {
+              return null;
+            }
+
+            return {
+              id: item.id,
+              structureKey: item.structureKey,
+              topicTitle: topic.title,
+              builderKind,
+              targetItemLabel: parsed.label,
+              prompt: parsed.prompt,
+              targetLevel: progress.levelBand,
+              dueAt: item.dueAt.toISOString(),
+              source: item.source as TopicDetailSnapshot["dueReviewCards"][number]["source"],
+              note:
+                vocabularyProgressByLabel.get(parsed.label)?.nextProofNeeded ??
+                `${parsed.label} is waiting for another pass before it fades.`,
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 6) as TopicDetailSnapshot["dueReviewCards"]
+      : [];
 
   const nextActions = [
     { label: "Start 5-prompt lesson", href: buildTopicSessionHref(builderKind, topicKey, "learn") },
     { label: "Practice again", href: buildTopicSessionHref(builderKind, topicKey, "practice") },
-    { label: "Review this topic", href: buildTopicSessionHref(builderKind, topicKey, "review") },
+    {
+      label: builderKind === "vocabulary" ? "Review words" : "Review this topic",
+      href: buildTopicSessionHref(builderKind, topicKey, "review"),
+    },
     { label: "Open challenge", href: buildTopicSessionHref(builderKind, topicKey, "challenge") },
   ];
 
@@ -614,6 +1106,9 @@ export async function getTopicDetailSnapshot(
     topic,
     progress,
     relatedTopics,
+    targetItems,
+    vocabularyItemProgress,
+    dueReviewCards,
     practiceHistory: historyByTopic.get(topicKey) ?? [],
     nextActions,
   };
@@ -712,6 +1207,11 @@ export async function getLearningMapSnapshot(
       attempts: topic.attempts,
       firstTryAccuracy: topic.firstTryAccuracy,
       repairSuccess: topic.repairSuccess,
+      learnedItemsCount: topic.learnedItemsCount,
+      stableItemsCount: topic.stableItemsCount,
+      dueItemCards: topic.dueItemCards,
+      unprovenItemsCount: topic.unprovenItemsCount,
+      recentLearnedItems: topic.recentLearnedItems,
       recentExercises: historyByTopic.get(topic.topicKey) ?? [],
       href: `/builders/${builderRouteSegment(topic.builderKind)}/${topic.topicKey}`,
     })),

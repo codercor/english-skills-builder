@@ -1,21 +1,38 @@
 import { z } from "zod";
 import { evaluateWithLLM } from "@/lib/ai/service";
+import { getStructureUnit } from "@/lib/catalog";
 import type {
   AssessmentQuestion,
   AssessmentResult,
+  FeedbackIssue,
+  FeedbackIssueKind,
   FeedbackPayload,
   PracticeItem,
+  PracticeTaskStep,
+  RecognitionEvidence,
   RecommendationPayload,
 } from "@/lib/types";
 import { calculateResponseScore, calculateSessionScore } from "@/lib/engine/scoring";
 import { clamp, round, tokenize } from "@/lib/utils";
 
+const recognitionEvidenceSchema = z.object({
+  selectedChoiceId: z.string(),
+  correctChoiceId: z.string(),
+  choiceAttempts: z.number().min(1),
+  revealed: z.boolean(),
+  correct: z.boolean(),
+  score: z.number().min(0).max(1),
+});
+
 export const practiceEvaluationRequestSchema = z.object({
   sessionId: z.string(),
   itemId: z.string(),
-  response: z.string(),
+  response: z.string().default(""),
   attemptNumber: z.number().min(1),
   responseLatencyMs: z.number().int().min(0).max(1000 * 60 * 30).optional(),
+  interactionStep: z.enum(["recognition", "follow_up", "text"]).optional(),
+  selectedChoiceId: z.string().optional(),
+  recognitionEvidence: recognitionEvidenceSchema.optional(),
 });
 
 export const practiceCompleteRequestSchema = z.object({
@@ -50,6 +67,39 @@ const BE_AUXILIARIES = new Set([
   "been",
   "being",
 ]);
+
+const ABSOLUTE_TONE_WORDS = new Set([
+  "prove",
+  "proves",
+  "proved",
+  "always",
+  "never",
+  "definitely",
+  "certainly",
+  "clearly",
+  "obviously",
+  "bad",
+  "good",
+  "best",
+  "worst",
+]);
+
+const CASUAL_REGISTER_WORDS = new Set([
+  "thing",
+  "stuff",
+  "really",
+  "a lot",
+  "good",
+  "bad",
+]);
+
+const ISSUE_TITLES: Record<FeedbackIssueKind, string> = {
+  spelling_word_form: "Spelling / word form",
+  grammar_structure: "Grammar / structure",
+  tone_register: "Tone / register",
+  word_choice: "Word choice",
+  naturalness_fluency: "Naturalness / fluency",
+};
 
 function lexemeForms(token: string) {
   const normalized = token.toLowerCase();
@@ -168,6 +218,22 @@ function editDistance(left: string, right: string) {
   return matrix[left.length][right.length];
 }
 
+function normalizeExactRewriteText(text: string) {
+  return text
+    .normalize("NFKC")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/[.!?]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function matchesExactRewrite(expected: string, response: string) {
+  return normalizeExactRewriteText(expected) === normalizeExactRewriteText(response);
+}
+
 function findPotentialTypo(item: PracticeItem, response: string) {
   const responseTokens = tokenize(response);
   const expectedTokens = [
@@ -213,11 +279,484 @@ function findPotentialTypo(item: PracticeItem, response: string) {
   return null;
 }
 
-export async function evaluatePracticeItem(
+function primaryIssueKind(item: PracticeItem): FeedbackIssueKind {
+  const unit = getStructureUnit(item.structureKey);
+
+  if (
+    item.structureKey === "hedging" ||
+    item.evaluationRubric.errorTag.includes("tone")
+  ) {
+    return "tone_register";
+  }
+
+  if (unit?.builderKind === "vocabulary" || unit?.builderKind === "phrase_idiom") {
+    return "word_choice";
+  }
+
+  if (unit?.builderKind === "sentence") {
+    return "naturalness_fluency";
+  }
+
+  return "grammar_structure";
+}
+
+function activeVocabularyTarget(item: PracticeItem) {
+  return (
+    item.targetItems?.find((target) => target.itemKey === item.focusTargetItemKey) ??
+    item.targetItems?.[0] ??
+    null
+  );
+}
+
+function issuePriority(issue: FeedbackIssue) {
+  const severityWeight =
+    issue.severity === "high" ? 30 : issue.severity === "medium" ? 20 : 10;
+  const kindWeight =
+    issue.kind === "spelling_word_form"
+      ? 5
+      : issue.kind === "grammar_structure"
+        ? 4
+        : issue.kind === "tone_register"
+          ? 3
+          : issue.kind === "word_choice"
+            ? 2
+            : 1;
+
+  return severityWeight + kindWeight;
+}
+
+function buildIssues(params: {
+  item: PracticeItem;
+  response: string;
+  coverage: number;
+  missing: string[];
+  potentialTypo: { actual: string; expected: string } | null;
+  attemptNumber: number;
+}) {
+  const { item, response, coverage, missing, potentialTypo } = params;
+  const responseTokens = tokenize(response);
+  const issues: FeedbackIssue[] = [];
+  const primaryKind = primaryIssueKind(item);
+  const targetItem = activeVocabularyTarget(item);
+  const absoluteToneWords = responseTokens.filter((token) =>
+    ABSOLUTE_TONE_WORDS.has(token),
+  );
+  const casualRegisterWords = responseTokens.filter((token) =>
+    CASUAL_REGISTER_WORDS.has(token),
+  );
+  const preferredPhrases = item.evaluationRubric.preferredPhrases ?? [];
+  const missingPreferredPhrase = preferredPhrases.find((phrase) => {
+    const normalizedPhrase = phrase.toLowerCase();
+    return !response.toLowerCase().includes(normalizedPhrase);
+  });
+  const feelsShort =
+    responseTokens.length > 0 &&
+    responseTokens.length < Math.max(6, tokenize(item.acceptedAnswer).length - 2);
+
+  if (potentialTypo) {
+    issues.push({
+      kind: "spelling_word_form",
+      title: ISSUE_TITLES.spelling_word_form,
+      summary: `"${potentialTypo.actual}" looks closer to "${potentialTypo.expected}", so the sentence still breaks before the main idea can land cleanly.`,
+      severity: "high",
+      fixFirst: false,
+      hint: `Repair "${potentialTypo.actual}" first, then check the rest of the sentence again.`,
+    });
+  }
+
+  if (missing.length || coverage < 0.82) {
+    const missingText = missing.slice(0, 2).join(", ");
+    const issueSummary =
+      primaryKind === "tone_register"
+        ? `${item.evaluationRubric.commonSlip} The claim still sounds too absolute for the evidence you are showing${missingText ? `, and it is still missing ${missingText}` : ""}.`
+        : primaryKind === "word_choice"
+          ? targetItem?.kind === "word_family"
+            ? `${item.evaluationRubric.commonSlip}${missingText ? ` The slot still needs a cleaner form from "${targetItem.label}"` : ` The sentence still needs a cleaner form from "${targetItem.label}"`}, so the family choice is not stable yet.`
+            : targetItem
+              ? `${item.evaluationRubric.commonSlip}${missingText ? ` The sentence is still missing or weakening ${missingText}` : ""}, so "${targetItem.label}" does not land as a natural ${targetItem.kind === "collocation" ? "collocation" : "word choice"} yet.`
+              : `${item.evaluationRubric.commonSlip}${missingText ? ` The sentence is still missing or weakening ${missingText}` : ""}, so the wording does not sound fully usable yet.`
+          : primaryKind === "naturalness_fluency"
+            ? `${item.evaluationRubric.commonSlip}${missingText ? ` The connection is still weak around ${missingText}` : ""}, so the sentence does not flow yet.`
+            : `${item.evaluationRubric.commonSlip}${missingText ? ` Missing or weak token(s): ${missingText}.` : ""}`;
+
+    issues.push({
+      kind: primaryKind,
+      title: ISSUE_TITLES[primaryKind],
+      summary: issueSummary,
+      severity: item.evaluationRubric.severity,
+      fixFirst: false,
+      hint: item.hint1,
+    });
+  }
+
+  if (
+    primaryKind !== "tone_register" &&
+    (item.structureKey === "hedging" ||
+      item.evaluationRubric.errorTag.includes("tone") ||
+      item.supportObjective.toLowerCase().includes("tone") ||
+      ((targetItem?.register === "formal" || targetItem?.register === "academic") &&
+        casualRegisterWords.length > 0)) &&
+    (absoluteToneWords.length > 0 ||
+      missing.includes("may") ||
+      missing.includes("might") ||
+      casualRegisterWords.length > 0)
+  ) {
+    issues.push({
+      kind: "tone_register",
+      title: ISSUE_TITLES.tone_register,
+      summary:
+        casualRegisterWords.length > 0 && targetItem
+          ? `The wording around "${targetItem.label}" is still more casual than this task wants${casualRegisterWords.length ? ` because of ${casualRegisterWords.slice(0, 2).join(" and ")}` : ""}, so the register does not fully match yet.`
+          : `The tone still sounds more absolute than analytical${absoluteToneWords.length ? ` because of ${absoluteToneWords.slice(0, 2).join(" and ")}` : ""}, which makes the claim harder to defend.`,
+      severity: "medium",
+      fixFirst: false,
+      hint: item.hint1,
+    });
+  }
+
+  if (
+    primaryKind !== "word_choice" &&
+    missingPreferredPhrase
+  ) {
+    issues.push({
+      kind: "word_choice",
+      title: ISSUE_TITLES.word_choice,
+      summary: `The idea is close, but the wording still misses a more natural choice like "${missingPreferredPhrase}", so it can sound translated or slightly off-register.`,
+      severity: "medium",
+      fixFirst: false,
+      hint: item.hint1,
+    });
+  }
+
+  if (
+    primaryKind !== "naturalness_fluency" &&
+    (feelsShort || item.promptType === "guided_generation" || item.promptType === "free_production")
+  ) {
+    issues.push({
+      kind: "naturalness_fluency",
+      title: ISSUE_TITLES.naturalness_fluency,
+      summary: feelsShort
+        ? "The sentence is understandable, but it is still too bare to feel like a natural final version."
+        : "The sentence carries the idea, but it still sounds slightly mechanical rather than fully fluent.",
+      severity: feelsShort ? "medium" : "low",
+      fixFirst: false,
+      hint:
+        params.attemptNumber > 1
+          ? item.hint2
+          : "Add one detail, connector, or natural phrase so the sentence sounds more complete.",
+    });
+  }
+
+  const uniqueIssues = issues.reduce<FeedbackIssue[]>((list, issue) => {
+    if (list.some((current) => current.kind === issue.kind)) {
+      return list;
+    }
+
+    list.push(issue);
+    return list;
+  }, []);
+
+  uniqueIssues.sort((left, right) => issuePriority(right) - issuePriority(left));
+
+  return uniqueIssues.slice(0, 3).map((issue, index) => ({
+    ...issue,
+    fixFirst: index === 0,
+  }));
+}
+
+function buildHighlightedSpans(params: {
+  item: PracticeItem;
+  response: string;
+  missing: string[];
+  potentialTypo: { actual: string; expected: string } | null;
+  issues: FeedbackIssue[];
+}) {
+  const spans: FeedbackPayload["highlightedSpans"] = [];
+  const responseTokens = tokenize(params.response);
+  const absoluteToneWords = responseTokens.filter((token) =>
+    ABSOLUTE_TONE_WORDS.has(token),
+  );
+
+  if (params.potentialTypo) {
+    spans.push({
+      text: params.potentialTypo.actual,
+      reason: `This looks closer to "${params.potentialTypo.expected}".`,
+      severity: "high",
+    });
+  }
+
+  if (params.missing.length) {
+    spans.push({
+      text: params.missing.slice(0, 2).join(" "),
+      reason: `The sentence still needs ${params.missing.slice(0, 2).join(" and ")} to land the target cleanly.`,
+      severity: params.item.evaluationRubric.severity,
+    });
+  }
+
+  if (absoluteToneWords.length && spans.length < 3) {
+    spans.push({
+      text: absoluteToneWords.slice(0, 2).join(" "),
+      reason: "This wording makes the claim sound more absolute than the task wants.",
+      severity: "medium",
+    });
+  }
+
+  if (!spans.length && params.issues[0]) {
+    spans.push({
+      text:
+        responseTokens.slice(-4).join(" ") ||
+        params.response.trim() ||
+        params.item.topic,
+      reason: params.issues[0].summary,
+      severity: params.issues[0].severity,
+    });
+  }
+
+  return spans.slice(0, 3);
+}
+
+function recognitionCredit(attemptNumber: number, correct: boolean) {
+  if (!correct) {
+    return 0;
+  }
+
+  return attemptNumber === 1 ? 0.22 : 0.12;
+}
+
+function resolveChoiceFeedback(
+  item: PracticeItem,
+  selectedChoiceId: string,
+  correctChoiceId: string,
+) {
+  const correctOption =
+    item.choiceOptions?.find((option) => option.id === correctChoiceId) ?? null;
+  const selectedOption =
+    item.choiceOptions?.find((option) => option.id === selectedChoiceId) ?? null;
+  const configured = item.choiceFeedbackByOption?.[selectedChoiceId];
+
+  if (configured) {
+    return configured;
+  }
+
+  if (selectedChoiceId === correctChoiceId) {
+    return {
+      whatWentWrong: "Right choice.",
+      why: item.whyItWorks,
+      whatFitsInstead: `Lock it in now by rewriting "${correctOption?.text ?? item.acceptedAnswer}" exactly.`,
+    };
+  }
+
+  const primaryKind = primaryIssueKind(item);
+  const why =
+    primaryKind === "word_choice"
+      ? item.evaluationRubric.commonSlip
+      : primaryKind === "grammar_structure"
+        ? item.hint1
+        : item.whyItWorks;
+
+  return {
+    whatWentWrong:
+      selectedOption?.text
+        ? `"${selectedOption.text}" keeps the weaker version of the pattern.`
+        : "That option keeps the weaker version of the pattern.",
+    why,
+    whatFitsInstead: `The better option is "${correctOption?.text ?? item.acceptedAnswer}".`,
+  };
+}
+
+function buildRecognitionFeedback(
+  item: PracticeItem,
+  selectedChoiceId: string,
+  attemptNumber: number,
+): FeedbackPayload {
+  const correctChoiceId = item.correctChoiceId ?? item.choiceOptions?.[0]?.id ?? "A";
+  const correct = selectedChoiceId === correctChoiceId;
+  const revealed = !correct && attemptNumber >= 2;
+  const recognitionEvidence: RecognitionEvidence = {
+    selectedChoiceId,
+    correctChoiceId,
+    choiceAttempts: attemptNumber,
+    revealed,
+    correct,
+    score: recognitionCredit(attemptNumber, correct),
+  };
+  const recognitionFeedback = resolveChoiceFeedback(
+    item,
+    selectedChoiceId,
+    correctChoiceId,
+  );
+  const correctOption =
+    item.choiceOptions?.find((option) => option.id === correctChoiceId) ?? null;
+  const issueKind = primaryIssueKind(item);
+
+  return {
+    itemId: item.id,
+    structureKey: item.structureKey,
+    taskStep: "recognition",
+    itemResolved: false,
+    opensFollowUp: correct || revealed,
+    recognitionEvidence,
+    recognitionFeedback,
+    highlightedSpans:
+      correct
+        ? []
+        : [
+            {
+              text: correctOption?.text ?? item.acceptedAnswer,
+              reason: recognitionFeedback.whatFitsInstead,
+              severity: item.evaluationRubric.severity,
+            },
+          ],
+    issues:
+      correct
+        ? []
+        : [
+            {
+              kind: issueKind,
+              title: ISSUE_TITLES[issueKind],
+              summary: recognitionFeedback.whatWentWrong,
+              severity: item.evaluationRubric.severity,
+              fixFirst: true,
+              hint: recognitionFeedback.whatFitsInstead,
+            },
+          ],
+    errorTags: [
+      item.evaluationRubric.errorTag,
+      correct ? "recognition_match" : "recognition_miss",
+    ],
+    hint1: item.followUpHint1 ?? item.hint1,
+    hint2: item.followUpHint2 ?? item.hint2,
+    acceptedAnswer: correctOption?.text ?? item.acceptedAnswer,
+    naturalRewrite: item.followUpNaturalRewrite ?? item.naturalRewrite,
+    levelUpVariants: item.followUpLevelUpVariants ?? item.levelUpVariants,
+    whyItWorks: correct ? item.whyItWorks : recognitionFeedback.why,
+    qualityScore: round(recognitionEvidence.score),
+    responseScore: round(recognitionEvidence.score),
+    shouldUpdateMastery: false,
+    isAccepted: correct,
+    canRevealAnswer: false,
+  };
+}
+
+function toFollowUpItem(item: PracticeItem): PracticeItem {
+  if (!item.followUpPrompt) {
+    return item;
+  }
+
+  return {
+    ...item,
+    prompt: item.followUpPrompt,
+    promptType: item.followUpPromptType ?? item.promptType,
+    interactionType: "text",
+    followUpMode: item.followUpMode,
+    acceptedAnswer: item.followUpAcceptedAnswer ?? item.acceptedAnswer,
+    whyItWorks: item.followUpWhyItWorks ?? item.whyItWorks,
+    hint1: item.followUpHint1 ?? item.hint1,
+    hint2: item.followUpHint2 ?? item.hint2,
+    naturalRewrite: item.followUpNaturalRewrite ?? item.naturalRewrite,
+    levelUpVariants: item.followUpLevelUpVariants ?? item.levelUpVariants,
+    evaluationRubric: item.followUpEvaluationRubric ?? item.evaluationRubric,
+    choiceOptions: undefined,
+    correctChoiceId: undefined,
+    choiceFeedbackByOption: undefined,
+  };
+}
+
+function exactRewriteAcceptedFeedback(
+  item: PracticeItem,
+  attemptNumber: number,
+): FeedbackPayload {
+  const responseScore =
+    attemptNumber === 1 ? 0.82 : attemptNumber === 2 ? 0.74 : 0.68;
+  const qualityScore =
+    attemptNumber === 1 ? 0.9 : attemptNumber === 2 ? 0.84 : 0.78;
+
+  return {
+    itemId: item.id,
+    structureKey: item.structureKey,
+    taskStep: "text",
+    itemResolved: true,
+    opensFollowUp: false,
+    highlightedSpans: [],
+    issues: [],
+    errorTags: [item.evaluationRubric.errorTag, "exact_rewrite_match"],
+    hint1: item.hint1,
+    hint2: item.hint2,
+    acceptedAnswer: item.acceptedAnswer,
+    naturalRewrite: item.naturalRewrite,
+    levelUpVariants: item.levelUpVariants,
+    whyItWorks: item.whyItWorks,
+    qualityScore: round(qualityScore),
+    responseScore: round(responseScore),
+    shouldUpdateMastery: true,
+    isAccepted: true,
+    canRevealAnswer: false,
+  };
+}
+
+function exactRewriteMismatchFeedback(
+  item: PracticeItem,
+  response: string,
+  attemptNumber: number,
+): FeedbackPayload {
+  const hasAnyResponse = Boolean(response.trim());
+  const summary = hasAnyResponse
+    ? "This step is checking whether you can reproduce the reference sentence exactly, so changing the wording still keeps the item unresolved."
+    : "This step only counts when you rewrite the reference sentence exactly.";
+  const hint = `Rewrite this sentence exactly: "${item.acceptedAnswer}"`;
+  const issueKind = primaryIssueKind(item);
+
+  return {
+    itemId: item.id,
+    structureKey: item.structureKey,
+    taskStep: "text",
+    itemResolved: false,
+    opensFollowUp: false,
+    highlightedSpans: [
+      {
+        text: response.trim() || item.acceptedAnswer,
+        reason: "This follow-up is exact rewrite only, so the wording must match the reference sentence.",
+        severity: "medium",
+      },
+    ],
+    issues: [
+      {
+        kind: issueKind,
+        title: "Exact rewrite",
+        summary,
+        severity: "medium",
+        fixFirst: true,
+        hint,
+      },
+    ],
+    errorTags: [item.evaluationRubric.errorTag, "exact_rewrite_miss"],
+    hint1: hint,
+    hint2: hint,
+    acceptedAnswer: item.acceptedAnswer,
+    naturalRewrite: item.naturalRewrite,
+    levelUpVariants: item.levelUpVariants,
+    whyItWorks: item.whyItWorks,
+    qualityScore: round(attemptNumber >= 2 ? 0.22 : 0.3),
+    responseScore: round(attemptNumber >= 2 ? 0.18 : 0.24),
+    shouldUpdateMastery: true,
+    isAccepted: false,
+    canRevealAnswer: attemptNumber >= 2,
+  };
+}
+
+async function evaluateTextPracticeItem(
   item: PracticeItem,
   response: string,
   attemptNumber: number,
 ): Promise<FeedbackPayload> {
+  if (item.followUpMode === "exact_rewrite") {
+    if (matchesExactRewrite(item.acceptedAnswer, response)) {
+      return exactRewriteAcceptedFeedback(item, attemptNumber);
+    }
+
+    return exactRewriteMismatchFeedback(item, response, attemptNumber);
+  }
+
   const llmFeedback = await evaluateWithLLM(item, response, attemptNumber);
   if (llmFeedback) {
     return { ...llmFeedback, itemId: item.id, structureKey: item.structureKey };
@@ -251,30 +790,39 @@ export async function evaluatePracticeItem(
   );
 
   const isAccepted = coverage >= 0.8 && !potentialTypo;
-  const fallbackReason = potentialTypo
-    ? `Possible spelling or word-form issue: "${potentialTypo.actual}" looks closer to "${potentialTypo.expected}".${missing.length ? ` The sentence also still needs ${missing.slice(0, 2).join(" and ")}.` : ""}`
-    : missing.length
-      ? `${item.evaluationRubric.commonSlip} Missing or weak token(s): ${missing.slice(0, 2).join(", ")}.`
-      : `${item.evaluationRubric.commonSlip} The key idea is present, but the sentence form still needs tightening.`;
+  const issues = isAccepted
+    ? []
+    : buildIssues({
+        item,
+        response,
+        coverage,
+        missing,
+        potentialTypo,
+        attemptNumber,
+      });
+  const highlightedSpans = isAccepted
+    ? []
+    : buildHighlightedSpans({
+        item,
+        response,
+        missing,
+        potentialTypo,
+        issues,
+      });
 
   return {
     itemId: item.id,
     structureKey: item.structureKey,
-    highlightedSpans: isAccepted
-      ? []
-      : [
-          {
-            text:
-              potentialTypo?.actual ??
-              (missing.slice(0, 2).join(" ") ||
-                response.split(" ").slice(-4).join(" ")),
-            reason: fallbackReason,
-            severity: item.evaluationRubric.severity,
-          },
-        ],
-    errorTags: potentialTypo
-      ? [item.evaluationRubric.errorTag, "spelling_or_word_form"]
-      : [item.evaluationRubric.errorTag],
+    taskStep: "text",
+    itemResolved: isAccepted,
+    opensFollowUp: false,
+    highlightedSpans,
+    issues,
+    errorTags: [
+      item.evaluationRubric.errorTag,
+      ...(potentialTypo ? ["spelling_or_word_form"] : []),
+      ...issues.map((issue) => issue.kind),
+    ].filter((tag, index, list) => list.indexOf(tag) === index),
     hint1: item.hint1,
     hint2: item.hint2,
     acceptedAnswer: item.acceptedAnswer,
@@ -287,6 +835,85 @@ export async function evaluatePracticeItem(
     isAccepted,
     canRevealAnswer: !isAccepted && attemptNumber >= 2,
   };
+}
+
+function mergeRecognitionEvidence(
+  item: PracticeItem,
+  feedback: FeedbackPayload,
+  recognitionEvidence?: RecognitionEvidence,
+): FeedbackPayload {
+  if (!recognitionEvidence) {
+    return feedback;
+  }
+
+  const productionWeight = item.followUpMode === "exact_rewrite" ? 0.78 : 0.85;
+  const recognitionWeight = 1 - productionWeight;
+  const exactRevealPenalty =
+    item.followUpMode === "exact_rewrite" && recognitionEvidence.revealed
+      ? 0.88
+      : 1;
+
+  return {
+    ...feedback,
+    taskStep: "follow_up",
+    itemResolved: feedback.isAccepted,
+    opensFollowUp: false,
+    recognitionEvidence,
+    responseScore: round(
+      clamp(
+        (feedback.responseScore * productionWeight +
+          recognitionEvidence.score * recognitionWeight) *
+          exactRevealPenalty,
+      ),
+    ),
+    qualityScore: round(
+      clamp(
+        (feedback.qualityScore * 0.92 + recognitionEvidence.score * 0.08) *
+          (item.followUpMode === "exact_rewrite" && recognitionEvidence.revealed
+            ? 0.92
+            : 1),
+      ),
+    ),
+    errorTags: [
+      ...feedback.errorTags,
+      recognitionEvidence.correct ? "recognition_support" : "recognition_repaired",
+    ].filter((tag, index, list) => list.indexOf(tag) === index),
+  };
+}
+
+export async function evaluatePracticeItem(
+  item: PracticeItem,
+  response: string,
+  attemptNumber: number,
+  options?: {
+    interactionStep?: PracticeTaskStep;
+    selectedChoiceId?: string;
+    recognitionEvidence?: RecognitionEvidence;
+  },
+): Promise<FeedbackPayload> {
+  const interactionStep =
+    options?.interactionStep ??
+    (item.interactionType === "hybrid_choice_text" ? "recognition" : "text");
+
+  if (interactionStep === "recognition") {
+    if (!item.choiceOptions?.length || !options?.selectedChoiceId) {
+      throw new Error("Recognition items require a selected choice.");
+    }
+
+    return buildRecognitionFeedback(item, options.selectedChoiceId, attemptNumber);
+  }
+
+  const effectiveItem =
+    interactionStep === "follow_up" ? toFollowUpItem(item) : item;
+  const feedback = await evaluateTextPracticeItem(
+    effectiveItem,
+    response,
+    attemptNumber,
+  );
+
+  return interactionStep === "follow_up"
+    ? mergeRecognitionEvidence(effectiveItem, feedback, options?.recognitionEvidence)
+    : feedback;
 }
 
 export function summarizeSession(

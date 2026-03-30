@@ -93,7 +93,10 @@ export async function evaluateWithLLM(
     "Return strict JSON that matches the provided schema exactly.",
     "Be conservative about acceptance. Only accept if the structure and meaning are good enough for the target level.",
     "Keep feedback concise, specific, and useful for self-repair.",
-    "If there is a spelling mistake, malformed word form, or obviously wrong surface form, call it out directly in highlightedSpans and errorTags.",
+    "Always populate issues as a layered list. Separate spelling/word-form, grammar/structure, tone/register, word choice, and naturalness/fluency when they apply.",
+    "If there is a spelling mistake, malformed word form, or obviously wrong surface form, call it out directly in issues, highlightedSpans, and errorTags.",
+    "Mark exactly one issue as fixFirst when the answer is not accepted. Pick the single issue that would unlock the biggest improvement on the next try.",
+    "Issue summaries should explain what is wrong and why it matters. Issue hints should tell the learner what to change next.",
     JSON.stringify(
       {
         prompt: item.prompt,
@@ -130,7 +133,7 @@ export async function evaluateWithLLM(
           {
             role: "system",
             content:
-              "You are an English learning evaluator. Return only JSON with 0-1 scores. If accepted, highlightedSpans may be empty. Keep rewritten examples aligned with the same meaning.",
+              "You are an English learning evaluator. Return only JSON with 0-1 scores. If accepted, highlightedSpans may be empty and issues may be an empty array. Keep rewritten examples aligned with the same meaning, and use issue blocks to separate different problem types.",
           },
           { role: "user", content: prompt },
         ],

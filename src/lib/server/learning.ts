@@ -21,8 +21,15 @@ import { rankRecommendationsWithLLM } from "@/lib/ai/service";
 import { assessmentQuestions } from "@/lib/data/assessment";
 import {
   getPracticeBlueprints,
+  getPracticeBlueprintVariants,
   type PracticeBlueprint,
 } from "@/lib/data/practice-bank";
+import {
+  buildVocabularyLessonBlueprints,
+  formatVocabularyReviewPrompt,
+  getVocabularyTargetItems,
+  parseVocabularyReviewPrompt,
+} from "@/lib/data/vocabulary-targets";
 import {
   getBuilderKinds,
   getBuilderMeta,
@@ -74,6 +81,7 @@ import type {
   MasteryRecord,
   OpsSnapshot,
   PracticeSession,
+  PracticeSessionSummary,
   PromptType,
   ProfileSnapshot,
   ProgressSnapshot,
@@ -83,6 +91,7 @@ import type {
   SkillSnapshot,
   UserFacingStage,
   Viewer,
+  VocabularyItemProgress,
 } from "@/lib/types";
 import {
   average,
@@ -92,7 +101,13 @@ import {
   titleCase,
 } from "@/lib/utils";
 import type { OnboardingProfile } from "@/lib/onboarding";
-import { getBuildersHubSnapshot } from "@/lib/server/topic-views";
+import {
+  getBuildersHubSnapshot,
+  getVocabularyItemProgressMap,
+} from "@/lib/server/topic-views";
+import {
+  decodeStoredPracticeResponse,
+} from "@/lib/practice-response";
 
 type Db = NonNullable<typeof db>;
 
@@ -223,6 +238,14 @@ function missionModeLabel(kind: RecommendationPayload["selected"]["kind"]) {
   return "Recommended practice";
 }
 
+function buildTopicPracticeHref(
+  builderKind: BuilderKind,
+  topicKey: string,
+  learningMode: PracticeSession["learningMode"],
+) {
+  return `/practice/topic--${builderKind}--${topicKey}--${learningMode}`;
+}
+
 function missionTitle(
   action: RecommendationPayload["selected"],
   unit: ReturnType<typeof getStructureUnit> | undefined,
@@ -340,6 +363,7 @@ function buildProgressProof(
   latestAttempts14d: (typeof userResponses.$inferSelect)[],
   sessionModeById: Map<string, PracticeSession["mode"]>,
   repeatedByResponseId: Map<string, boolean>,
+  vocabularyItemProgressMap?: Map<string, VocabularyItemProgress[]>,
 ): DashboardSnapshot["progressProof"] {
   const now = new Date();
   const recentStart = subDays(now, 7);
@@ -426,6 +450,31 @@ function buildProgressProof(
       value: movedStructure.title,
       note: `${movedStructure.title} is now ${toUserFacingStage(movedStructure).toLowerCase()} because recent practice is translating into cleaner attempts.`,
       weight: movedStructure.masteryDelta7d,
+    });
+  }
+
+  const vocabularyItems = [...(vocabularyItemProgressMap?.values() ?? [])].flat();
+  const recentNewVocabulary = vocabularyItems.filter((item) => {
+    return item.firstSeenAt
+      ? new Date(item.firstSeenAt) >= recentStart
+      : false;
+  }).length;
+  const previousNewVocabulary = vocabularyItems.filter((item) => {
+    if (!item.firstSeenAt) {
+      return false;
+    }
+
+    const date = new Date(item.firstSeenAt);
+    return date >= previousStart && date < recentStart;
+  }).length;
+
+  if (recentNewVocabulary > 0 && recentNewVocabulary >= previousNewVocabulary) {
+    proofCards.push({
+      id: "vocabulary-use",
+      label: "New vocabulary in use",
+      value: `${recentNewVocabulary} item${recentNewVocabulary === 1 ? "" : "s"}`,
+      note: "New words and chunks are starting to appear inside real sentences, not just inside explanations.",
+      weight: recentNewVocabulary / 3,
     });
   }
 
@@ -759,10 +808,11 @@ function buildRecentWin(
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
     .find((row) => {
       const feedback = feedbackByResponseId.get(row.id);
+      const decoded = decodeStoredPracticeResponse(row.rawUserResponse);
       return (
         feedback &&
         (!row.firstTrySuccess || row.hintCount > 0 || row.retryCount > 0) &&
-        row.rawUserResponse.trim().toLowerCase() !==
+        decoded.text.trim().toLowerCase() !==
           feedback.naturalRewrite.trim().toLowerCase()
       );
     });
@@ -779,7 +829,7 @@ function buildRecentWin(
 
   return {
     structureTitle: humanizeStructureKey(session.primaryStructure),
-    beforeText: candidate.rawUserResponse,
+    beforeText: decodeStoredPracticeResponse(candidate.rawUserResponse).text,
     afterText: feedback.naturalRewrite,
     note: feedback.whyItWorks,
   };
@@ -859,12 +909,52 @@ function toMetadata(blueprint: PracticeBlueprint) {
     supportObjective: blueprint.supportObjective,
     topic: blueprint.topic,
     memoryAnchor: blueprint.memoryAnchor,
+    interactionType: blueprint.interactionType ?? (blueprint.promptType === "completion" ? "completion" : "text"),
+    choiceOptions: blueprint.choiceOptions ?? null,
+    correctChoiceId: blueprint.correctChoiceId ?? null,
+    choiceFeedbackByOption: blueprint.choiceFeedbackByOption ?? null,
+    followUpPrompt: blueprint.followUpPrompt ?? null,
+    followUpPromptType: blueprint.followUpPromptType ?? null,
+    followUpMode: blueprint.followUpMode ?? null,
+    followUpAcceptedAnswer: blueprint.followUpAcceptedAnswer ?? null,
+    followUpWhyItWorks: blueprint.followUpWhyItWorks ?? null,
+    followUpHint1: blueprint.followUpHint1 ?? null,
+    followUpHint2: blueprint.followUpHint2 ?? null,
+    followUpNaturalRewrite: blueprint.followUpNaturalRewrite ?? null,
+    followUpLevelUpVariants: blueprint.followUpLevelUpVariants ?? null,
+    followUpEvaluationRubric: blueprint.followUpEvaluationRubric ?? null,
     whyItWorks: blueprint.whyItWorks,
     hint1: blueprint.hint1,
     hint2: blueprint.hint2,
     naturalRewrite: blueprint.naturalRewrite,
     levelUpVariants: blueprint.levelUpVariants,
+    variantId: blueprint.variantId ?? `${blueprint.structureKey}:core`,
+    variantLabel: blueprint.variantLabel ?? "core",
+    targetItems: blueprint.targetItems ?? [],
+    targetItemKeys: blueprint.targetItemKeys ?? [],
+    focusTargetItemKey: blueprint.focusTargetItemKey ?? null,
+    focusTargetItemLabel: blueprint.focusTargetItemLabel ?? null,
     evaluationRubric: blueprint.evaluationRubric,
+  };
+}
+
+function buildSessionMicroIntro(
+  unit: ReturnType<typeof getStructureUnit>,
+  learningMode: PracticeSession["learningMode"],
+): PracticeSession["microIntro"] {
+  if (!unit || learningMode !== "learn") {
+    return null;
+  }
+
+  return {
+    title: unit.title,
+    whatThisIs: unit.teachingSummary,
+    whenToUse: unit.whenToUse,
+    commonTrap:
+      unit.commonMistakes[0] ??
+      unit.whenNotToUse,
+    modelExamples: unit.examples.slice(0, 2),
+    compact: false,
   };
 }
 
@@ -887,11 +977,31 @@ function mapPracticeRowsToSession(
       supportObjective: string;
       topic: string;
       memoryAnchor: boolean;
+      interactionType?: PracticeSession["items"][number]["interactionType"];
+      choiceOptions?: PracticeSession["items"][number]["choiceOptions"] | null;
+      correctChoiceId?: string | null;
+      choiceFeedbackByOption?: PracticeSession["items"][number]["choiceFeedbackByOption"] | null;
+      followUpPrompt?: string | null;
+      followUpPromptType?: PracticeSession["items"][number]["followUpPromptType"] | null;
+      followUpMode?: PracticeSession["items"][number]["followUpMode"] | null;
+      followUpAcceptedAnswer?: string | null;
+      followUpWhyItWorks?: string | null;
+      followUpHint1?: string | null;
+      followUpHint2?: string | null;
+      followUpNaturalRewrite?: string | null;
+      followUpLevelUpVariants?: PracticeSession["items"][number]["followUpLevelUpVariants"] | null;
+      followUpEvaluationRubric?: PracticeSession["items"][number]["followUpEvaluationRubric"] | null;
       whyItWorks: string;
       hint1: string;
       hint2: string;
       naturalRewrite: string;
       levelUpVariants: Array<{ level: LevelBand; text: string }>;
+      variantId?: string;
+      variantLabel?: string;
+      targetItems?: PracticeSession["targetItems"];
+      targetItemKeys?: string[];
+      focusTargetItemKey?: string | null;
+      focusTargetItemLabel?: string | null;
       evaluationRubric: PracticeSession["items"][number]["evaluationRubric"];
     };
 
@@ -899,6 +1009,22 @@ function mapPracticeRowsToSession(
       id: row.id,
       prompt: row.prompt,
       promptType: row.promptType as PracticeSession["items"][number]["promptType"],
+      interactionType:
+        metadata.interactionType ??
+        (row.promptType === "completion" ? "completion" : "text"),
+      choiceOptions: metadata.choiceOptions ?? undefined,
+      correctChoiceId: metadata.correctChoiceId ?? undefined,
+      choiceFeedbackByOption: metadata.choiceFeedbackByOption ?? undefined,
+      followUpPrompt: metadata.followUpPrompt ?? undefined,
+      followUpPromptType: metadata.followUpPromptType ?? undefined,
+      followUpMode: metadata.followUpMode ?? undefined,
+      followUpAcceptedAnswer: metadata.followUpAcceptedAnswer ?? undefined,
+      followUpWhyItWorks: metadata.followUpWhyItWorks ?? undefined,
+      followUpHint1: metadata.followUpHint1 ?? undefined,
+      followUpHint2: metadata.followUpHint2 ?? undefined,
+      followUpNaturalRewrite: metadata.followUpNaturalRewrite ?? undefined,
+      followUpLevelUpVariants: metadata.followUpLevelUpVariants ?? undefined,
+      followUpEvaluationRubric: metadata.followUpEvaluationRubric ?? undefined,
       structureKey: row.structureKey,
       levelBand: metadata.levelBand,
       supportObjective: metadata.supportObjective,
@@ -910,6 +1036,12 @@ function mapPracticeRowsToSession(
       hint2: metadata.hint2,
       naturalRewrite: metadata.naturalRewrite,
       levelUpVariants: metadata.levelUpVariants,
+      variantId: metadata.variantId,
+      variantLabel: metadata.variantLabel,
+      targetItems: metadata.targetItems ?? [],
+      targetItemKeys: metadata.targetItemKeys ?? [],
+      focusTargetItemKey: metadata.focusTargetItemKey ?? undefined,
+      focusTargetItemLabel: metadata.focusTargetItemLabel ?? undefined,
       evaluationRubric: metadata.evaluationRubric,
     };
   });
@@ -939,8 +1071,10 @@ function mapPracticeRowsToSession(
         : learningMode === "learn"
           ? "This session teaches the pattern briefly, then makes you use it before you move on."
           : learningMode === "challenge"
-            ? "This topic is ready for a harder version that checks whether it really holds in open production."
-        : "This session targets the structure most likely to improve your next sentence fastest.",
+          ? "This topic is ready for a harder version that checks whether it really holds in open production."
+          : "This session targets the structure most likely to improve your next sentence fastest.",
+    microIntro: buildSessionMicroIntro(unit, learningMode),
+    targetItems: items[0]?.targetItems ?? [],
     items,
   };
 }
@@ -970,12 +1104,10 @@ async function pickBlueprintsForUser(
   userId: string,
   structureKey: string,
   mode: PracticeSession["mode"],
+  learningMode: PracticeSession["learningMode"],
+  targetLevel: LevelBand,
+  dueItems: ReviewItem[] = [],
 ) {
-  const blueprints = getPracticeBlueprints(structureKey);
-  if (blueprints.length <= 5) {
-    return blueprints;
-  }
-
   const database = requireDb();
   const priorSessions = await database
     .select({ id: practiceSessions.id })
@@ -989,8 +1121,53 @@ async function pickBlueprintsForUser(
       ),
     );
 
+  const unit = getStructureUnit(structureKey);
+  if (unit?.builderKind === "vocabulary" && getVocabularyTargetItems(structureKey).length) {
+    const knownTargetItems = getVocabularyTargetItems(structureKey);
+    const itemProgress =
+      (
+        await getVocabularyItemProgressMap(
+          {
+            id: userId,
+            name: "",
+            email: "",
+          },
+          { topicKeys: [structureKey] },
+        )
+      ).get(structureKey) ?? [];
+    const dueItemKeys = dueItems
+      .map((item) => {
+        if (item.targetItemLabel) {
+          return (
+            knownTargetItems.find((target) => target.label === item.targetItemLabel)?.itemKey ??
+            null
+          );
+        }
+
+        return parseVocabularyReviewPrompt(item.prompt)?.itemKey ?? null;
+      })
+      .filter((itemKey): itemKey is string => Boolean(itemKey));
+
+    return buildVocabularyLessonBlueprints({
+      topicKey: structureKey,
+      learningMode,
+      targetLevel,
+      cycle: priorSessions.length,
+      dueItemKeys,
+      itemProgress,
+    });
+  }
+
+  const blueprints = getPracticeBlueprintVariants(
+    structureKey,
+    priorSessions.length,
+  );
+  if (!blueprints.length) {
+    return [];
+  }
+
   const offset = priorSessions.length % blueprints.length;
-  return Array.from({ length: 5 }, (_, index) => {
+  return Array.from({ length: Math.min(5, blueprints.length) }, (_, index) => {
     return blueprints[(offset + index) % blueprints.length];
   });
 }
@@ -2008,24 +2185,33 @@ export async function getOrCreatePracticeSession(
         : manualTopicRequest.topic.skillArea === "vocabulary"
           ? (profile.vocabularyUsage as LevelBand)
           : (profile.sentenceBuilding as LevelBand);
-    const baseBlueprints = await pickBlueprintsForUser(
-      viewer.id,
-      manualTopicRequest.topicKey,
-      manualTopicRequest.learningMode === "review" ? "review" : "practice",
-    );
-    const orderedBlueprints = orderBlueprintsForLearningMode(
-      baseBlueprints,
-      manualTopicRequest.learningMode,
-    );
     const dueItems = manualTopicRequest.learningMode === "review"
       ? (await getDueReviewItems(viewer.id)).filter(
           (item) => item.structureKey === manualTopicRequest.topicKey,
         )
       : [];
-    const blueprints = orderedBlueprints.map((blueprint, index) => ({
-      ...blueprint,
-      prompt: dueItems[index]?.prompt ?? blueprint.prompt,
-    }));
+    const baseBlueprints = await pickBlueprintsForUser(
+      viewer.id,
+      manualTopicRequest.topicKey,
+      manualTopicRequest.learningMode === "review" ? "review" : "practice",
+      manualTopicRequest.learningMode,
+      targetLevel,
+      dueItems,
+    );
+    const orderedBlueprints =
+      manualTopicRequest.topic.builderKind === "vocabulary"
+        ? baseBlueprints
+        : orderBlueprintsForLearningMode(
+            baseBlueprints,
+            manualTopicRequest.learningMode,
+          );
+    const blueprints =
+      manualTopicRequest.topic.builderKind === "vocabulary"
+        ? orderedBlueprints
+        : orderedBlueprints.map((blueprint, index) => ({
+            ...blueprint,
+            prompt: dueItems[index]?.prompt ?? blueprint.prompt,
+          }));
     const sessionTitle =
       manualTopicRequest.learningMode === "learn"
         ? `${manualTopicRequest.topic.title} Builder Lesson`
@@ -2069,10 +2255,20 @@ export async function getOrCreatePracticeSession(
     }
 
     const structureKey = dueItems[0].structureKey;
-    const blueprints = (await pickBlueprintsForUser(viewer.id, structureKey, "review")).map((blueprint, index) => ({
-      ...blueprint,
-      prompt: dueItems[index]?.prompt ?? blueprint.prompt,
-    }));
+    const reviewBlueprints = await pickBlueprintsForUser(
+      viewer.id,
+      structureKey,
+      "review",
+      "review",
+      dueItems[0].targetLevel,
+      dueItems.filter((item) => item.structureKey === structureKey),
+    );
+    const blueprints = getStructureUnit(structureKey)?.builderKind === "vocabulary"
+      ? reviewBlueprints
+      : reviewBlueprints.map((blueprint, index) => ({
+          ...blueprint,
+          prompt: dueItems[index]?.prompt ?? blueprint.prompt,
+        }));
 
     return createPracticeSessionRecord(
       viewer,
@@ -2140,6 +2336,8 @@ export async function getOrCreatePracticeSession(
     viewer.id,
     targetRecord.structureKey,
     "practice",
+    "practice",
+    targetRecord.currentLevelBand,
   );
   const title =
     sessionIdOrSlug === "momentum-lab"
@@ -2169,11 +2367,19 @@ export async function storePracticeFeedback(params: {
   itemId: string;
   attemptNumber: number;
   response: string;
+  normalizedResponse?: string;
+  persistedResponse?: string;
+  acceptedAnswerShown?: boolean;
   feedback: Awaited<ReturnType<typeof import("@/lib/engine/evaluator").evaluatePracticeItem>>;
   responseLatencyMs?: number;
 }) {
   const database = requireDb();
-  const normalized = params.response.trim().toLowerCase();
+  const normalized = (params.normalizedResponse ?? params.response).trim().toLowerCase();
+  const recognitionRetries = Math.max(
+    0,
+    (params.feedback.recognitionEvidence?.choiceAttempts ?? 1) - 1,
+  );
+  const totalRetries = Math.max(0, params.attemptNumber - 1) + recognitionRetries;
   const responseId = crypto.randomUUID();
   const [itemRow] = await database
     .select()
@@ -2202,15 +2408,15 @@ export async function storePracticeFeedback(params: {
     userId: params.viewer.id,
     sessionId: params.sessionId,
     itemId: params.itemId,
-    rawUserResponse: params.response,
+    rawUserResponse: params.persistedResponse ?? params.response,
     normalizedResponse: normalized,
     attemptNumber: params.attemptNumber,
-    hintCount: params.attemptNumber > 1 ? params.attemptNumber - 1 : 0,
-    retryCount: params.attemptNumber - 1,
+    hintCount: totalRetries,
+    retryCount: totalRetries,
     responseLatencyMs: params.responseLatencyMs ?? 0,
-    firstTrySuccess: params.attemptNumber === 1 && params.feedback.isAccepted,
-    repairSuccess: params.attemptNumber > 1 && params.feedback.isAccepted,
-    acceptedAnswerShown: false,
+    firstTrySuccess: totalRetries === 0 && params.feedback.isAccepted,
+    repairSuccess: totalRetries > 0 && params.feedback.isAccepted,
+    acceptedAnswerShown: params.acceptedAnswerShown ?? false,
     qualityScore: params.feedback.qualityScore,
     responseScore: params.feedback.responseScore,
   });
@@ -2248,6 +2454,130 @@ async function getAffectedStructureKeys(sessionId: string) {
   return [...new Set(rows.map((row) => row.structureKey))];
 }
 
+function buildStillSlipsCopy(
+  latestResponses: (typeof userResponses.$inferSelect)[],
+  feedbackByResponseId: Map<string, typeof feedbackEvents.$inferSelect>,
+  updatedRecord?: MasteryRecord,
+) {
+  const weakestResponse = [...latestResponses]
+    .sort((left, right) => left.responseScore - right.responseScore)[0];
+  const weakestFeedback = weakestResponse
+    ? feedbackByResponseId.get(weakestResponse.id)
+    : null;
+  const primaryHighlight = Array.isArray(weakestFeedback?.highlightedSpans)
+    ? (weakestFeedback.highlightedSpans as Array<{
+        reason?: string;
+      }>)[0]
+    : null;
+
+  if (weakestResponse && weakestResponse.responseScore < 0.78) {
+    return (
+      primaryHighlight?.reason ??
+      weakestFeedback?.hint1 ??
+      "One or two prompts still needed repair before the structure felt automatic."
+    );
+  }
+
+  if (updatedRecord?.hintDependenceRate14d && updatedRecord.hintDependenceRate14d > 0.18) {
+    return "The topic is cleaner now, but it still needs one more low-hint session before it feels automatic.";
+  }
+
+  if (updatedRecord?.reviewSuccessRate30d && updatedRecord.reviewSuccessRate30d < 0.7) {
+    return "The form lands in practice, but review is still where it needs more stability.";
+  }
+
+  return "The sentence quality improved, but another mixed prompt set will help the topic hold in more open production.";
+}
+
+function buildSessionProof(
+  session: typeof practiceSessions.$inferSelect,
+  latestResponses: (typeof userResponses.$inferSelect)[],
+  feedbackByResponseId: Map<string, typeof feedbackEvents.$inferSelect>,
+): {
+  proofSnippet: PracticeSessionSummary["proofSnippet"];
+  improvedBecause: string;
+} {
+  const unit = getStructureUnit(session.primaryStructure);
+  const proofCandidate = [...latestResponses]
+    .filter((response) => feedbackByResponseId.has(response.id))
+    .sort((left, right) => {
+      const retryDelta = right.retryCount - left.retryCount;
+      if (retryDelta !== 0) {
+        return retryDelta;
+      }
+
+      const firstTryPenalty =
+        Number(left.firstTrySuccess) - Number(right.firstTrySuccess);
+      if (firstTryPenalty !== 0) {
+        return firstTryPenalty;
+      }
+
+      return left.responseScore - right.responseScore;
+    })[0];
+
+  if (!proofCandidate) {
+    return {
+      proofSnippet: null,
+      improvedBecause:
+        unit?.teachingSummary ??
+        "This session tightened the structure without losing the original meaning.",
+    };
+  }
+
+  const feedback = feedbackByResponseId.get(proofCandidate.id);
+  if (!feedback) {
+    return {
+      proofSnippet: null,
+      improvedBecause:
+        unit?.teachingSummary ??
+        "This session tightened the structure without losing the original meaning.",
+    };
+  }
+
+  return {
+    proofSnippet: {
+      structureTitle: unit?.title ?? titleCase(session.primaryStructure),
+      beforeText: decodeStoredPracticeResponse(proofCandidate.rawUserResponse).text,
+      afterText: feedback.naturalRewrite,
+    },
+    improvedBecause:
+      feedback.whyItWorks ||
+      unit?.teachingSummary ||
+      "This version keeps the meaning but makes the sentence more usable.",
+  };
+}
+
+function buildSummaryActions(
+  session: typeof practiceSessions.$inferSelect,
+  recommendation: RecommendationPayload,
+): Pick<PracticeSessionSummary, "nextAction" | "followUpActions"> {
+  const unit = getStructureUnit(session.primaryStructure) ?? structureCatalog[0];
+  const nextHref =
+    recommendation.selected.kind === "due_review"
+      ? "/practice/review-due"
+      : recommendation.selected.href;
+
+  return {
+    nextAction: {
+      label: "Open next best practice",
+      href: nextHref,
+      reason: recommendation.selected.reason,
+    },
+    followUpActions: [
+      {
+        label: "Practice similar",
+        href: buildTopicPracticeHref(unit.builderKind, unit.key, "practice"),
+        reason: `Stay with ${unit.title} but open a fresh five-prompt variation.`,
+      },
+      {
+        label: "Review this topic",
+        href: buildTopicPracticeHref(unit.builderKind, unit.key, "review"),
+        reason: `Bring ${unit.title} back under light pressure before it fades.`,
+      },
+    ],
+  };
+}
+
 export async function completePracticeSession(params: {
   viewer: Viewer;
   sessionId: string;
@@ -2276,11 +2606,7 @@ export async function completePracticeSession(params: {
 
   const reviewCount = params.items.filter((item) => item.responseScore < 0.7).length;
   const latestResponses = await database
-    .select({
-      id: userResponses.id,
-      itemId: userResponses.itemId,
-      createdAt: userResponses.createdAt,
-    })
+    .select()
     .from(userResponses)
     .where(
       and(
@@ -2289,23 +2615,23 @@ export async function completePracticeSession(params: {
       ),
     )
     .orderBy(desc(userResponses.createdAt));
-  const latestResponseByItem = new Map<string, string>();
+  const latestResponseByItem = new Map<string, (typeof userResponses.$inferSelect)>();
 
   for (const responseRow of latestResponses) {
     if (!latestResponseByItem.has(responseRow.itemId)) {
-      latestResponseByItem.set(responseRow.itemId, responseRow.id);
+      latestResponseByItem.set(responseRow.itemId, responseRow);
     }
   }
 
   for (const item of params.items) {
     if (item.revealedAnswer) {
-      const responseId = latestResponseByItem.get(item.itemId);
+      const responseRow = latestResponseByItem.get(item.itemId);
 
-      if (responseId) {
+      if (responseRow) {
         await database
           .update(userResponses)
           .set({ acceptedAnswerShown: true })
-          .where(eq(userResponses.id, responseId));
+          .where(eq(userResponses.id, responseRow.id));
       }
     }
 
@@ -2323,13 +2649,40 @@ export async function completePracticeSession(params: {
       continue;
     }
 
+    const itemMetadata = practiceItemRow.metadata as {
+      focusTargetItemKey?: string | null;
+      focusTargetItemLabel?: string | null;
+      targetItems?: Array<{
+        itemKey: string;
+        label: string;
+      }>;
+    };
+    const reviewPrompt =
+      getStructureUnit(practiceItemRow.structureKey)?.builderKind === "vocabulary" &&
+      itemMetadata.focusTargetItemKey &&
+      itemMetadata.focusTargetItemLabel
+        ? formatVocabularyReviewPrompt(
+            {
+              itemKey: itemMetadata.focusTargetItemKey,
+              label: itemMetadata.focusTargetItemLabel,
+              kind: "word",
+              gloss: "",
+              register: "neutral",
+              naturalPairings: [],
+              goodExample: "",
+              awkwardExample: "",
+              commonTrap: "",
+            },
+          )
+        : practiceItemRow.prompt;
+
     await database.insert(reviewItems).values({
       id: crypto.randomUUID(),
       userId: params.viewer.id,
       structureKey: practiceItemRow.structureKey,
       source:
         item.responseScore < 0.45 ? "failed_structure" : "repeated_mistake",
-      prompt: practiceItemRow.prompt,
+      prompt: reviewPrompt,
       dueAt: addDays(new Date(), getReviewDelayDays(item.responseScore)),
       status: "due",
     });
@@ -2395,6 +2748,30 @@ export async function completePracticeSession(params: {
   const recommendation = await buildRecommendationForUser(params.viewer.id);
 
   const summary = summarizeSession(params.sessionId, params.items, recommendation);
+  const latestResponseRows = [...latestResponseByItem.values()];
+  const feedbackRows = latestResponseRows.length
+    ? await database
+        .select()
+        .from(feedbackEvents)
+        .where(inArray(feedbackEvents.responseId, latestResponseRows.map((row) => row.id)))
+    : [];
+  const feedbackByResponseId = new Map(
+    feedbackRows.map((row) => [row.responseId, row]),
+  );
+  const primaryRecord =
+    updatedRecords.find((record) => record.structureKey === session.primaryStructure) ??
+    allRecords.find((record) => record.structureKey === session.primaryStructure);
+  const { proofSnippet, improvedBecause } = buildSessionProof(
+    session,
+    latestResponseRows,
+    feedbackByResponseId,
+  );
+  const { nextAction, followUpActions } = buildSummaryActions(session, recommendation);
+  const stillSlips = buildStillSlipsCopy(
+    latestResponseRows,
+    feedbackByResponseId,
+    primaryRecord,
+  );
 
   await database
     .update(practiceSessions)
@@ -2405,6 +2782,11 @@ export async function completePracticeSession(params: {
     ...summary,
     reviewItemsCreated: reviewCount,
     leagueImpact: `+${Math.max(6, Math.round(leagueState.weeklyLearningScore / 10))} weekly score`,
+    proofSnippet,
+    improvedBecause,
+    stillSlips,
+    nextAction,
+    followUpActions,
   };
 }
 
@@ -2423,21 +2805,66 @@ export async function getDueReviewItems(userId: string): Promise<ReviewItem[]> {
     .orderBy(asc(reviewItems.dueAt));
 
   const mastery = await getMasteryRecordsForUser(userId);
+  const vocabularyItemProgressMap = await getVocabularyItemProgressMap(
+    { id: userId, name: "", email: "" },
+    {
+      topicKeys: [...new Set(rows.map((row) => row.structureKey))],
+    },
+  );
   const masteryByKey = new Map(
     mastery.map((record) => [record.structureKey, record.currentLevelBand]),
   );
+  const reviewSourceLabel = (progress?: VocabularyItemProgress | null) => {
+    if (!progress) {
+      return "Seen but not stable";
+    }
 
-  return rows.map((row) => ({
-    id: row.id,
-    structureKey: row.structureKey,
-    topicTitle: humanizeStructureKey(row.structureKey),
-    builderKind: getStructureUnit(row.structureKey)?.builderKind ?? "grammar",
-    prompt: row.prompt,
-    targetLevel: masteryByKey.get(row.structureKey) ?? "B1",
-    dueAt: row.dueAt.toISOString(),
-    source: row.source as ReviewItem["source"],
-    note: `Scheduled for ${formatDateShort(row.dueAt)} because ${titleCase(row.source).toLowerCase()} still needs reinforcement.`,
-  }));
+    const reason = progress.lastIncorrectReason?.toLowerCase() ?? "";
+    if (reason.includes("family")) {
+      return "Wrong family form";
+    }
+
+    if (reason.includes("register") || reason.includes("tone")) {
+      return "Register mismatch";
+    }
+
+    if (reason.includes("collocation") || progress.kind === "collocation") {
+      return "Wrong collocation";
+    }
+
+    if (progress.independentUseWins === 0) {
+      return "Needs independent reuse";
+    }
+
+    return "Seen but not stable";
+  };
+
+  return rows.map((row) => {
+    const parsedVocabularyPrompt = parseVocabularyReviewPrompt(row.prompt);
+    const vocabularyProgress = parsedVocabularyPrompt?.label
+      ? vocabularyItemProgressMap
+          .get(row.structureKey)
+          ?.find((item) => item.label === parsedVocabularyPrompt.label) ?? null
+      : null;
+
+    return {
+      id: row.id,
+      structureKey: row.structureKey,
+      topicTitle: humanizeStructureKey(row.structureKey),
+      builderKind: getStructureUnit(row.structureKey)?.builderKind ?? "grammar",
+      targetItemLabel: parsedVocabularyPrompt?.label ?? null,
+      prompt: parsedVocabularyPrompt?.prompt ?? row.prompt,
+      targetLevel: masteryByKey.get(row.structureKey) ?? "B1",
+      dueAt: row.dueAt.toISOString(),
+      source: row.source as ReviewItem["source"],
+      sourceLabel: parsedVocabularyPrompt?.label ? reviewSourceLabel(vocabularyProgress) : undefined,
+      note:
+        parsedVocabularyPrompt?.label
+          ? vocabularyProgress?.nextProofNeeded ??
+            `${parsedVocabularyPrompt.label} still needs one more pass before the usage becomes automatic.`
+          : `Scheduled for ${formatDateShort(row.dueAt)} because ${titleCase(row.source).toLowerCase()} still needs reinforcement.`,
+    };
+  });
 }
 
 function buildDecisionLogFromRecord(
@@ -2571,7 +2998,7 @@ export async function getDashboardSnapshot(
     getStructureUnit(focusRecord.structureKey) ??
     structureCatalog[0];
 
-  const [weekSessions, responseRows14, todayCompletedSessions] = await Promise.all([
+  const [weekSessions, responseRows14, todayCompletedSessions, vocabularyItemProgressMap] = await Promise.all([
     database
       .select()
       .from(practiceSessions)
@@ -2592,6 +3019,7 @@ export async function getDashboardSnapshot(
         ),
       ),
     getCompletedPracticeSessionsSince(viewer.id, startOfDay(now)),
+    getVocabularyItemProgressMap(viewer),
   ]);
 
   const latestAttempts14d = collapseToLatestAttempts(responseRows14);
@@ -2672,6 +3100,7 @@ export async function getDashboardSnapshot(
     latestAttempts14d,
     sessionModeById,
     repeatedByResponseId,
+    vocabularyItemProgressMap,
   );
   const recentWin = buildRecentWin(
     latestAttempts14d,

@@ -126,7 +126,18 @@ export default async function BuilderCatalogPage({
                   <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
                     {topic.lastActionLabel}
                     {topic.reviewDueCount ? ` · ${topic.reviewDueCount} due review` : ""}
+                    {topic.builderKind === "vocabulary" && topic.dueItemCards
+                      ? ` · ${topic.dueItemCards} due word card${topic.dueItemCards === 1 ? "" : "s"}`
+                      : ""}
                   </p>
+                  {topic.builderKind === "vocabulary" ? (
+                    <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                      {topic.learnedItemsCount ?? 0} learned items ·{" "}
+                      {topic.stableItemsCount ?? 0} stable ·{" "}
+                      {topic.unprovenItemsCount ?? 0} unproven usage ·{" "}
+                      {(topic.recentLearnedItems ?? []).slice(0, 2).join(" · ") || "No item-level work yet"}
+                    </p>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link href={`/builders/${snapshot.builderKind}/${topic.topicKey}`}>
                       <Button size="sm">Open topic</Button>
