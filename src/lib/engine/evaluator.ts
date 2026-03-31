@@ -234,15 +234,47 @@ function matchesExactRewrite(expected: string, response: string) {
   return normalizeExactRewriteText(expected) === normalizeExactRewriteText(response);
 }
 
-function findPotentialTypo(item: PracticeItem, response: string) {
-  const responseTokens = tokenize(response);
-  const expectedTokens = [
+function hasPhrase(response: string, phrase: string) {
+  return response.toLowerCase().includes(phrase.toLowerCase());
+}
+
+function isOpenProductionItem(item: PracticeItem) {
+  return (
+    item.allowOpenProduction !== false &&
+    (item.promptType === "memory_anchor" || item.promptType === "free_production")
+  );
+}
+
+function groundedExpectedTokens(item: PracticeItem) {
+  return [
+    ...(item.groundingTargets ?? []),
     ...item.evaluationRubric.requiredTokens,
-    ...tokenize(item.acceptedAnswer),
-    ...tokenize(item.naturalRewrite),
+    ...tokenize(item.focusTargetItemLabel ?? ""),
   ]
+    .map((token) => token.toLowerCase())
     .filter((token) => token.length >= 4)
     .filter((token, index, array) => array.indexOf(token) === index);
+}
+
+function withFeedbackTrust(
+  item: PracticeItem,
+  feedback: Omit<FeedbackPayload, "feedbackSource" | "feedbackConfidence" | "scoreVisible">,
+  source: FeedbackPayload["feedbackSource"],
+  options?: { forceGrounded?: boolean },
+): FeedbackPayload {
+  const lowConfidence = options?.forceGrounded ? false : isOpenProductionItem(item);
+
+  return {
+    ...feedback,
+    feedbackSource: source,
+    feedbackConfidence: lowConfidence ? "low_confidence" : "grounded",
+    scoreVisible: !lowConfidence,
+  };
+}
+
+function findPotentialTypo(item: PracticeItem, response: string) {
+  const responseTokens = tokenize(response);
+  const expectedTokens = groundedExpectedTokens(item);
 
   for (const token of responseTokens) {
     if (token.length < 4) {
@@ -308,6 +340,124 @@ function activeVocabularyTarget(item: PracticeItem) {
   );
 }
 
+function buildStrategySpecificIssue(
+  item: PracticeItem,
+  response: string,
+): FeedbackIssue | null {
+  const responseLower = response.toLowerCase();
+
+  if (item.feedbackStrategy === "reported_speech") {
+    if (item.evaluationRubric.errorTag.includes("told_frame") && /\btold that\b/.test(responseLower)) {
+      return {
+        kind: "grammar_structure",
+        title: ISSUE_TITLES.grammar_structure,
+        summary: 'Use "told" with an object like "me", "us", or "him". "Told that" sounds incomplete in reported speech.',
+        severity: "high",
+        fixFirst: false,
+        hint: 'Try the full frame: "told me that..."',
+      };
+    }
+
+    if (
+      item.evaluationRubric.errorTag.includes("time_shift") &&
+      /\b(today|tomorrow|here|now|will)\b/.test(responseLower)
+    ) {
+      return {
+        kind: "grammar_structure",
+        title: ISSUE_TITLES.grammar_structure,
+        summary: "This report still keeps direct-speech time or future wording. Reported speech usually shifts the tense or the time marker here.",
+        severity: "high",
+        fixFirst: false,
+        hint: 'Try forms like "would", "that day", "the next day", or "there" if the original moment has shifted.',
+      };
+    }
+
+    if (
+      item.evaluationRubric.errorTag.includes("question_form") &&
+      (responseLower.includes("?") || /\basked\b.*\b(did|do|does|is|are|can|will|have)\b/.test(responseLower))
+    ) {
+      return {
+        kind: "grammar_structure",
+        title: ISSUE_TITLES.grammar_structure,
+        summary: "Reported questions need statement word order. The sentence still sounds too close to the original question.",
+        severity: "high",
+        fixFirst: false,
+        hint: 'Use a frame like "asked whether ..." and keep the verb order flat.',
+      };
+    }
+
+    if (/\b(i|me|my)\b/.test(responseLower) && /\b(she|he|they)\b/.test(item.acceptedAnswer.toLowerCase())) {
+      return {
+        kind: "grammar_structure",
+        title: ISSUE_TITLES.grammar_structure,
+        summary: "The viewpoint is still too close to the original quote. Reported speech usually shifts the pronoun to match the speaker being reported.",
+        severity: "medium",
+        fixFirst: false,
+        hint: "Check whether the pronoun should follow the original speaker instead of the direct quote voice.",
+      };
+    }
+  }
+
+  if (item.feedbackStrategy === "spoken_chunk") {
+    if (hasPhrase(responseLower, "go to home")) {
+      return {
+        kind: "word_choice",
+        title: ISSUE_TITLES.word_choice,
+        summary: 'English uses the chunk "go home", not "go to home". The extra preposition makes it sound translated.',
+        severity: "high",
+        fixFirst: false,
+        hint: 'Use the chunk exactly as "go home".',
+      };
+    }
+
+    if (item.evaluationRubric.errorTag.includes("spoken_chunk_honest") && !hasPhrase(responseLower, "to be honest")) {
+      return {
+        kind: "word_choice",
+        title: ISSUE_TITLES.word_choice,
+        summary: 'This task is checking the fixed chunk "to be honest". The current wording still misses part of that opener.',
+        severity: "medium",
+        fixFirst: false,
+        hint: 'Start with the full chunk "to be honest".',
+      };
+    }
+
+    if (item.evaluationRubric.errorTag.includes("spoken_chunk_same_time") && hasPhrase(responseLower, "same side")) {
+      return {
+        kind: "word_choice",
+        title: ISSUE_TITLES.word_choice,
+        summary: 'The natural chunk is "at the same time". Changing one word inside the chunk makes it sound unnatural.',
+        severity: "high",
+        fixFirst: false,
+        hint: 'Use "at the same time".',
+      };
+    }
+
+    if (item.evaluationRubric.errorTag.includes("spoken_chunk_bit") && !hasPhrase(responseLower, "a bit")) {
+      return {
+        kind: "word_choice",
+        title: ISSUE_TITLES.word_choice,
+        summary: 'This task is checking the chunk "a bit". The current sentence still does not keep that chunk together.',
+        severity: "medium",
+        fixFirst: false,
+        hint: 'Keep the chunk together as "a bit".',
+      };
+    }
+
+    if (item.evaluationRubric.errorTag.includes("spoken_chunk_that_said") && !hasPhrase(responseLower, "that said")) {
+      return {
+        kind: "word_choice",
+        title: ISSUE_TITLES.word_choice,
+        summary: 'The contrast is clear, but the sentence still misses the spoken chunk "that said".',
+        severity: "medium",
+        fixFirst: false,
+        hint: 'Open the sentence with "That said, ..."',
+      };
+    }
+  }
+
+  return null;
+}
+
 function issuePriority(issue: FeedbackIssue) {
   const severityWeight =
     issue.severity === "high" ? 30 : issue.severity === "medium" ? 20 : 10;
@@ -344,6 +494,7 @@ function buildIssues(params: {
   const casualRegisterWords = responseTokens.filter((token) =>
     CASUAL_REGISTER_WORDS.has(token),
   );
+  const strategySpecificIssue = buildStrategySpecificIssue(item, response);
   const preferredPhrases = item.evaluationRubric.preferredPhrases ?? [];
   const missingPreferredPhrase = preferredPhrases.find((phrase) => {
     const normalizedPhrase = phrase.toLowerCase();
@@ -353,7 +504,11 @@ function buildIssues(params: {
     responseTokens.length > 0 &&
     responseTokens.length < Math.max(6, tokenize(item.acceptedAnswer).length - 2);
 
-  if (potentialTypo) {
+  if (strategySpecificIssue) {
+    issues.push(strategySpecificIssue);
+  }
+
+  if (potentialTypo && !strategySpecificIssue) {
     issues.push({
       kind: "spelling_word_form",
       title: ISSUE_TITLES.spelling_word_form,
@@ -377,7 +532,7 @@ function buildIssues(params: {
               : `${item.evaluationRubric.commonSlip}${missingText ? ` The sentence is still missing or weakening ${missingText}` : ""}, so the wording does not sound fully usable yet.`
           : primaryKind === "naturalness_fluency"
             ? `${item.evaluationRubric.commonSlip}${missingText ? ` The connection is still weak around ${missingText}` : ""}, so the sentence does not flow yet.`
-            : `${item.evaluationRubric.commonSlip}${missingText ? ` Missing or weak token(s): ${missingText}.` : ""}`;
+            : `${item.evaluationRubric.commonSlip}${missingText ? ` The target form is still weak around ${missingText}.` : ""}`;
 
     issues.push({
       kind: primaryKind,
@@ -589,7 +744,9 @@ function buildRecognitionFeedback(
     item.choiceOptions?.find((option) => option.id === correctChoiceId) ?? null;
   const issueKind = primaryIssueKind(item);
 
-  return {
+  return withFeedbackTrust(
+    item,
+    {
     itemId: item.id,
     structureKey: item.structureKey,
     taskStep: "recognition",
@@ -635,7 +792,10 @@ function buildRecognitionFeedback(
     shouldUpdateMastery: false,
     isAccepted: correct,
     canRevealAnswer: false,
-  };
+    },
+    item.contentSource ?? "authored_bank",
+    { forceGrounded: true },
+  );
 }
 
 function toFollowUpItem(item: PracticeItem): PracticeItem {
@@ -665,7 +825,7 @@ function toFollowUpItem(item: PracticeItem): PracticeItem {
 function exactRewriteAcceptedFeedback(
   item: PracticeItem,
   attemptNumber: number,
-): FeedbackPayload {
+): Omit<FeedbackPayload, "feedbackSource" | "feedbackConfidence" | "scoreVisible"> {
   const responseScore =
     attemptNumber === 1 ? 0.82 : attemptNumber === 2 ? 0.74 : 0.68;
   const qualityScore =
@@ -698,7 +858,7 @@ function exactRewriteMismatchFeedback(
   item: PracticeItem,
   response: string,
   attemptNumber: number,
-): FeedbackPayload {
+): Omit<FeedbackPayload, "feedbackSource" | "feedbackConfidence" | "scoreVisible"> {
   const hasAnyResponse = Boolean(response.trim());
   const summary = hasAnyResponse
     ? "This step is checking whether you can reproduce the reference sentence exactly, so changing the wording still keeps the item unresolved."
@@ -751,15 +911,33 @@ async function evaluateTextPracticeItem(
 ): Promise<FeedbackPayload> {
   if (item.followUpMode === "exact_rewrite") {
     if (matchesExactRewrite(item.acceptedAnswer, response)) {
-      return exactRewriteAcceptedFeedback(item, attemptNumber);
+      return withFeedbackTrust(
+        item,
+        exactRewriteAcceptedFeedback(item, attemptNumber),
+        item.contentSource ?? "authored_bank",
+        { forceGrounded: true },
+      );
     }
 
-    return exactRewriteMismatchFeedback(item, response, attemptNumber);
+    return withFeedbackTrust(
+      item,
+      exactRewriteMismatchFeedback(item, response, attemptNumber),
+      item.contentSource ?? "authored_bank",
+      { forceGrounded: true },
+    );
   }
 
-  const llmFeedback = await evaluateWithLLM(item, response, attemptNumber);
-  if (llmFeedback) {
-    return { ...llmFeedback, itemId: item.id, structureKey: item.structureKey };
+  const shouldUseLLM =
+    item.contentSource !== "safe_fallback" && isOpenProductionItem(item);
+  if (shouldUseLLM) {
+    const llmFeedback = await evaluateWithLLM(item, response, attemptNumber);
+    if (llmFeedback) {
+      return withFeedbackTrust(
+        item,
+        { ...llmFeedback, itemId: item.id, structureKey: item.structureKey },
+        "llm",
+      );
+    }
   }
 
   const coverage = overlapScore(item.evaluationRubric.requiredTokens, response);
@@ -810,7 +988,7 @@ async function evaluateTextPracticeItem(
         issues,
       });
 
-  return {
+  return withFeedbackTrust(item, {
     itemId: item.id,
     structureKey: item.structureKey,
     taskStep: "text",
@@ -834,7 +1012,7 @@ async function evaluateTextPracticeItem(
     shouldUpdateMastery: true,
     isAccepted,
     canRevealAnswer: !isAccepted && attemptNumber >= 2,
-  };
+  }, item.contentSource ?? "authored_bank");
 }
 
 function mergeRecognitionEvidence(

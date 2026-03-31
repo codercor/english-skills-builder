@@ -13,6 +13,10 @@ import type {
 export interface PracticeBlueprint {
   prompt: string;
   promptType: PromptType;
+  contentSource?: "authored_bank" | "safe_fallback";
+  feedbackStrategy?: "generic" | "reported_speech" | "spoken_chunk";
+  groundingTargets?: string[];
+  allowOpenProduction?: boolean;
   interactionType?: PracticeInteractionType;
   choiceOptions?: ChoiceOption[];
   correctChoiceId?: string;
@@ -1269,6 +1273,187 @@ const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
       },
     },
   ],
+  "reported-speech": [
+    {
+      prompt: 'Rewrite this in reported speech: Maya said, "I can\'t come today."',
+      promptType: "rewrite",
+      contentSource: "authored_bank",
+      feedbackStrategy: "reported_speech",
+      groundingTargets: ["said", "couldn't", "that day"],
+      allowOpenProduction: false,
+      structureKey: "reported-speech",
+      levelBand: "B2",
+      supportObjective: "Control tense shifts in reporting.",
+      topic: "reporting",
+      memoryAnchor: false,
+      acceptedAnswer: "Maya said that she couldn't come that day.",
+      whyItWorks: "The sentence backshifts the modal and adjusts the time word to fit reported speech.",
+      hint1: "Shift the tense and the time word so the report sounds natural after the moment has passed.",
+      hint2: "Try couldn't and that day instead of the direct quote wording.",
+      naturalRewrite: "Maya said that she couldn't come that day because she was still at work.",
+      levelUpVariants: [
+        { level: "B2", text: "Maya said that she couldn't come that day." },
+        { level: "C1", text: "Maya said that she couldn't come that day because she was still at work." },
+        { level: "C1", text: "Maya said that she couldn't come that day, so we moved the plan to later in the week." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["said", "couldn't", "that", "day"],
+        errorTag: "reported_speech_time_shift",
+        commonSlip: "Keeping the direct quote too close to the original wording.",
+        severity: "high",
+      },
+    },
+    {
+      prompt: "Which reported sentence is more natural?",
+      promptType: "rewrite",
+      contentSource: "authored_bank",
+      feedbackStrategy: "reported_speech",
+      groundingTargets: ["told me"],
+      allowOpenProduction: false,
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        { id: "A", text: "The coach told me that I needed more sleep." },
+        { id: "B", text: "The coach told that I needed more sleep." },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong: 'The reporting verb is close, but "told" normally needs an object like "me" or "us".',
+          why: 'English says "told me/us/him", not "told that" on its own.',
+          whatFitsInstead:
+            'Choose "The coach told me that I needed more sleep." to keep the reporting frame natural.',
+        },
+      },
+      followUpPrompt: "Rewrite only the better sentence exactly before moving on.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: "The coach told me that I needed more sleep.",
+      followUpWhyItWorks: 'The sentence uses "told" with the object it needs.',
+      followUpHint1: 'Keep the object after "told".',
+      followUpHint2: 'Write the full frame: "told me that..."',
+      followUpNaturalRewrite:
+        "The coach told me that I needed more sleep before the next match.",
+      followUpLevelUpVariants: [
+        { level: "B2", text: "The coach told me that I needed more sleep." },
+        { level: "C1", text: "The coach told me that I needed more sleep before the next match." },
+        { level: "C1", text: "The coach told me that I needed more sleep, which was hard to ignore after that week." },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: ["told", "me"],
+        errorTag: "reported_speech_told_frame",
+        commonSlip: 'Using "told" without the object it requires.',
+        severity: "high",
+      },
+      structureKey: "reported-speech",
+      levelBand: "B2",
+      supportObjective: "Control tense shifts in reporting.",
+      topic: "reporting",
+      memoryAnchor: false,
+      acceptedAnswer: "The coach told me that I needed more sleep.",
+      whyItWorks: 'The reporting frame is complete because "told" takes an object.',
+      hint1: 'Keep the object after "told".',
+      hint2: 'Write the full frame: "told me that..."',
+      naturalRewrite: "The coach told me that I needed more sleep before the next match.",
+      levelUpVariants: [
+        { level: "B2", text: "The coach told me that I needed more sleep." },
+        { level: "C1", text: "The coach told me that I needed more sleep before the next match." },
+        { level: "C1", text: "The coach told me that I needed more sleep, which finally made me slow down." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["told", "me"],
+        errorTag: "reported_speech_told_frame",
+        commonSlip: 'Using "told" without the object it requires.',
+        severity: "high",
+      },
+    },
+    {
+      prompt: "Correct the reported sentence: Sara said that she will finish it tomorrow.",
+      promptType: "error_correction",
+      contentSource: "authored_bank",
+      feedbackStrategy: "reported_speech",
+      groundingTargets: ["would", "the next day"],
+      allowOpenProduction: false,
+      structureKey: "reported-speech",
+      levelBand: "B2",
+      supportObjective: "Control tense shifts in reporting.",
+      topic: "reporting",
+      memoryAnchor: false,
+      acceptedAnswer: "Sara said that she would finish it the next day.",
+      whyItWorks: "Reported speech shifts both the future form and the time marker.",
+      hint1: "Adjust the future form and the time word together.",
+      hint2: 'Try "would" and "the next day".',
+      naturalRewrite: "Sara said that she would finish it the next day, so I stopped waiting for it that evening.",
+      levelUpVariants: [
+        { level: "B2", text: "Sara said that she would finish it the next day." },
+        { level: "C1", text: "Sara said that she would finish it the next day, so I stopped waiting for it that evening." },
+        { level: "C1", text: "Sara said that she would finish it the next day, which gave the rest of us a clearer timeline." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["would", "next", "day"],
+        errorTag: "reported_speech_time_shift",
+        commonSlip: "Keeping direct-speech future or time words unchanged.",
+        severity: "high",
+      },
+    },
+    {
+      prompt: "Use these ideas in one sentence: told, me, meeting, earlier.",
+      promptType: "guided_generation",
+      contentSource: "authored_bank",
+      feedbackStrategy: "reported_speech",
+      groundingTargets: ["told me", "earlier"],
+      allowOpenProduction: false,
+      structureKey: "reported-speech",
+      levelBand: "B2",
+      supportObjective: "Control tense shifts in reporting.",
+      topic: "meetings",
+      memoryAnchor: false,
+      acceptedAnswer: "He told me that the meeting was earlier than we expected.",
+      whyItWorks: "The sentence reports information smoothly with a natural told-me frame.",
+      hint1: 'Keep "told me" together and turn the ideas into one report.',
+      hint2: 'Use one clean reported sentence instead of listing the words.',
+      naturalRewrite: "He told me that the meeting was earlier than we expected, so I had to leave the house sooner.",
+      levelUpVariants: [
+        { level: "B2", text: "He told me that the meeting was earlier than we expected." },
+        { level: "C1", text: "He told me that the meeting was earlier than we expected, so I had to rearrange the morning." },
+        { level: "C1", text: "He told me that the meeting was earlier than we expected, which completely changed the pace of the day." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["told", "me", "meeting", "earlier"],
+        errorTag: "reported_speech_told_frame",
+        commonSlip: "Breaking the reporting frame instead of turning the ideas into one usable sentence.",
+        severity: "medium",
+      },
+    },
+    {
+      prompt: 'Rewrite this question in reported speech: He asked, "Did you send the file already?"',
+      promptType: "rewrite",
+      contentSource: "authored_bank",
+      feedbackStrategy: "reported_speech",
+      groundingTargets: ["asked whether", "had sent"],
+      allowOpenProduction: false,
+      structureKey: "reported-speech",
+      levelBand: "B2",
+      supportObjective: "Control tense shifts in reporting.",
+      topic: "questions",
+      memoryAnchor: false,
+      acceptedAnswer: "He asked whether I had sent the file already.",
+      whyItWorks: "Reported questions need statement word order and often backshift the tense.",
+      hint1: 'Use "asked whether" and change the question to statement order.',
+      hint2: 'Try "had sent" instead of the direct question form.',
+      naturalRewrite: "He asked whether I had sent the file already because he needed it before lunch.",
+      levelUpVariants: [
+        { level: "B2", text: "He asked whether I had sent the file already." },
+        { level: "C1", text: "He asked whether I had sent the file already because the client was waiting for it." },
+        { level: "C1", text: "He asked whether I had sent the file already, which made it clear how urgent the situation had become." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["asked", "whether", "had", "sent"],
+        errorTag: "reported_speech_question_form",
+        commonSlip: "Keeping direct-question order inside a reported question.",
+        severity: "high",
+      },
+    },
+  ],
   "passive-voice": [
     {
       prompt: "Rewrite this naturally in the passive: The team finished the report yesterday.",
@@ -1686,6 +1871,186 @@ const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
       },
     },
   ],
+  "spoken-chunks": [
+    {
+      prompt: "Which sentence sounds more natural in everyday English?",
+      promptType: "rewrite",
+      contentSource: "authored_bank",
+      feedbackStrategy: "spoken_chunk",
+      groundingTargets: ["go home"],
+      allowOpenProduction: false,
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        { id: "A", text: "I want to go home now." },
+        { id: "B", text: "I want to go to home now." },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong:
+            'English treats "go home" like a chunk, so adding "to" makes it sound translated.',
+          why: '"Home" already works as the destination here.',
+          whatFitsInstead: 'Choose "I want to go home now." to keep the chunk natural.',
+        },
+      },
+      followUpPrompt: "Rewrite only the better sentence exactly before moving on.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: "I want to go home now.",
+      followUpWhyItWorks: 'The sentence keeps the chunk "go home" intact.',
+      followUpHint1: 'Use the chunk "go home" without an extra preposition.',
+      followUpHint2: 'Write the sentence with "go home", not "go to home".',
+      followUpNaturalRewrite: "I want to go home now because I am completely done for the day.",
+      followUpLevelUpVariants: [
+        { level: "B1", text: "I want to go home now." },
+        { level: "B2", text: "I want to go home now because I am completely done for the day." },
+        { level: "C1", text: "I want to go home now, to be honest, because my energy has completely run out." },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: ["go", "home"],
+        errorTag: "spoken_chunk_go_home",
+        commonSlip: 'Breaking the chunk "go home" with an extra preposition.',
+        severity: "high",
+      },
+      structureKey: "spoken-chunks",
+      levelBand: "B1",
+      supportObjective: "Sound more natural in spoken flow.",
+      topic: "chunks",
+      memoryAnchor: false,
+      acceptedAnswer: "I want to go home now.",
+      whyItWorks: 'The sentence uses the spoken chunk "go home" naturally.',
+      hint1: 'Use the chunk "go home" without an extra preposition.',
+      hint2: 'Keep the destination chunk intact.',
+      naturalRewrite: "I want to go home now because I am running out of patience.",
+      levelUpVariants: [
+        { level: "B1", text: "I want to go home now." },
+        { level: "B2", text: "I want to go home now because I am running out of patience." },
+        { level: "C1", text: "I want to go home now, to be honest, because my brain is finished for the day." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["go", "home"],
+        errorTag: "spoken_chunk_go_home",
+        commonSlip: 'Breaking the chunk "go home" with an extra preposition.',
+        severity: "high",
+      },
+    },
+    {
+      prompt: "Complete the sentence naturally: ____ be honest, I expected it to be easier.",
+      promptType: "completion",
+      contentSource: "authored_bank",
+      feedbackStrategy: "spoken_chunk",
+      groundingTargets: ["to be honest"],
+      allowOpenProduction: false,
+      structureKey: "spoken-chunks",
+      levelBand: "B1",
+      supportObjective: "Sound more natural in spoken flow.",
+      topic: "chunks",
+      memoryAnchor: false,
+      acceptedAnswer: "To be honest, I expected it to be easier.",
+      whyItWorks: '"To be honest" is a stable chunk that softens the opinion naturally.',
+      hint1: 'This chunk starts with "to".',
+      hint2: 'Write the full opener "to be honest".',
+      naturalRewrite: "To be honest, I expected it to be easier once I started.",
+      levelUpVariants: [
+        { level: "B1", text: "To be honest, I expected it to be easier." },
+        { level: "B2", text: "To be honest, I expected it to be easier once I actually started." },
+        { level: "C1", text: "To be honest, I expected it to be easier, which is probably why the first setback hit harder than it should have." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["to", "be", "honest"],
+        errorTag: "spoken_chunk_honest",
+        commonSlip: "Losing part of a fixed spoken opener.",
+        severity: "medium",
+      },
+    },
+    {
+      prompt: "Correct the chunk: At the same side, I can see why they chose it.",
+      promptType: "error_correction",
+      contentSource: "authored_bank",
+      feedbackStrategy: "spoken_chunk",
+      groundingTargets: ["at the same time"],
+      allowOpenProduction: false,
+      structureKey: "spoken-chunks",
+      levelBand: "B1",
+      supportObjective: "Sound more natural in spoken flow.",
+      topic: "chunks",
+      memoryAnchor: false,
+      acceptedAnswer: "At the same time, I can see why they chose it.",
+      whyItWorks: '"At the same time" is the natural spoken chunk for balancing two ideas.',
+      hint1: 'Replace the wrong word inside the chunk.',
+      hint2: 'Use "time", not "side".',
+      naturalRewrite: "At the same time, I can see why they chose it, so I am not completely against the idea.",
+      levelUpVariants: [
+        { level: "B1", text: "At the same time, I can see why they chose it." },
+        { level: "B2", text: "At the same time, I can see why they chose it, even if I still have concerns." },
+        { level: "C1", text: "At the same time, I can see why they chose it, which is why my reaction is more mixed than negative." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["same", "time"],
+        errorTag: "spoken_chunk_same_time",
+        commonSlip: "Changing one word inside a fixed chunk and making it sound unnatural.",
+        severity: "high",
+      },
+    },
+    {
+      prompt: "Use these ideas in one sentence: a bit, tired, after work.",
+      promptType: "guided_generation",
+      contentSource: "authored_bank",
+      feedbackStrategy: "spoken_chunk",
+      groundingTargets: ["a bit"],
+      allowOpenProduction: false,
+      structureKey: "spoken-chunks",
+      levelBand: "B1",
+      supportObjective: "Sound more natural in spoken flow.",
+      topic: "chunks",
+      memoryAnchor: false,
+      acceptedAnswer: "I was a bit tired after work.",
+      whyItWorks: '"A bit" is a natural spoken chunk for softening degree.',
+      hint1: 'Keep "a bit" together as one chunk.',
+      hint2: 'Build one simple sentence around the chunk.',
+      naturalRewrite: "I was a bit tired after work, so I did not want to talk much on the way home.",
+      levelUpVariants: [
+        { level: "B1", text: "I was a bit tired after work." },
+        { level: "B2", text: "I was a bit tired after work, so I went home earlier than usual." },
+        { level: "C1", text: "I was a bit tired after work, which was enough to kill any plan that involved seeing other people." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["bit", "tired", "work"],
+        errorTag: "spoken_chunk_bit",
+        commonSlip: 'Dropping part of the chunk "a bit" and sounding less natural than spoken English usually does.',
+        severity: "medium",
+      },
+    },
+    {
+      prompt: 'Rewrite this more naturally with the chunk "that said": I understand your reasons, but I still disagree.',
+      promptType: "rewrite",
+      contentSource: "authored_bank",
+      feedbackStrategy: "spoken_chunk",
+      groundingTargets: ["that said"],
+      allowOpenProduction: false,
+      structureKey: "spoken-chunks",
+      levelBand: "B1",
+      supportObjective: "Sound more natural in spoken flow.",
+      topic: "chunks",
+      memoryAnchor: false,
+      acceptedAnswer: "That said, I still disagree.",
+      whyItWorks: '"That said" is a compact spoken chunk for turning to the contrasting point.',
+      hint1: 'Start with the chunk "that said".',
+      hint2: 'Keep the contrast short and natural.',
+      naturalRewrite: "That said, I still disagree because the change feels rushed.",
+      levelUpVariants: [
+        { level: "B1", text: "That said, I still disagree." },
+        { level: "B2", text: "That said, I still disagree because the timing feels rushed." },
+        { level: "C1", text: "That said, I still disagree, mainly because the timing makes the whole change feel rushed." },
+      ],
+      evaluationRubric: {
+        requiredTokens: ["that", "said", "disagree"],
+        errorTag: "spoken_chunk_that_said",
+        commonSlip: "Explaining the contrast word by word instead of using the spoken chunk directly.",
+        severity: "medium",
+      },
+    },
+  ],
 };
 
 function pickKeywords(example: string) {
@@ -1718,6 +2083,48 @@ function expandExample(example: string, structureKey: string) {
   return `${trimmed}, ${ending}`;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function replaceFirstWholeWord(text: string, target: string, replacement: string) {
+  const pattern = new RegExp(`\\b${escapeRegExp(target)}\\b`, "i");
+  return text.replace(pattern, replacement);
+}
+
+function cleanupSentence(text: string) {
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+}
+
+function buildSafeFallbackChoiceVariant(example: string, keywords: string[]) {
+  const trimmed = example.trim();
+
+  for (const keyword of keywords) {
+    const candidate = cleanupSentence(replaceFirstWholeWord(trimmed, keyword, ""));
+    if (candidate && candidate !== trimmed) {
+      return candidate;
+    }
+  }
+
+  return cleanupSentence(`${trimmed} ${keywords[0] ?? ""}`);
+}
+
+function buildSafeFallbackCompletionPrompt(example: string, keywords: string[]) {
+  const trimmed = example.trim();
+
+  for (const keyword of keywords) {
+    const candidate = replaceFirstWholeWord(trimmed, keyword, "____");
+    if (candidate !== trimmed) {
+      return `Complete the sentence naturally: ${cleanupSentence(candidate)}`;
+    }
+  }
+
+  return `Complete the sentence naturally: ${trimmed} ____`;
+}
+
 function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
   const topic = getStructureUnit(structureKey);
 
@@ -1735,22 +2142,63 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
   const primaryNatural = expandExample(primaryExample, structureKey);
   const secondaryNatural = expandExample(secondaryExample, structureKey);
   const tertiaryNatural = expandExample(tertiaryExample, structureKey);
-  const keywordPool = pickKeywords(fallbackExamples[0] ?? topic.title);
-  const fallbackKeywords = keywordPool.length ? keywordPool : pickKeywords(topic.title);
+  const primaryKeywordPool = pickKeywords(primaryExample);
+  const primaryKeywords = primaryKeywordPool.length ? primaryKeywordPool : pickKeywords(topic.title);
+  const secondaryKeywordPool = pickKeywords(secondaryExample);
+  const secondaryKeywords = secondaryKeywordPool.length ? secondaryKeywordPool : primaryKeywords;
+  const primaryWeakOption = buildSafeFallbackChoiceVariant(primaryExample, primaryKeywords);
+  const secondaryWeakOption = buildSafeFallbackChoiceVariant(secondaryExample, secondaryKeywords);
 
   return [
     {
-      prompt: `Write one sentence that uses ${topic.title.toLowerCase()} in a real context from your life.`,
-      promptType: "memory_anchor",
+      prompt: `Which sentence keeps ${topic.title.toLowerCase()} more clearly?`,
+      promptType: "rewrite",
+      contentSource: "safe_fallback",
+      feedbackStrategy: "generic",
+      groundingTargets: primaryKeywords,
+      allowOpenProduction: false,
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        { id: "A", text: primaryExample },
+        { id: "B", text: primaryWeakOption },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong:
+            `This version drops part of the target pattern, so ${topic.title.toLowerCase()} no longer lands cleanly.`,
+          why: topic.commonMistakes[0] ?? `The pattern weakens when a key part disappears.`,
+          whatFitsInstead: `Choose "${primaryExample}" to keep the target form intact.`,
+        },
+      },
+      followUpPrompt: "Rewrite only the better sentence exactly before moving on.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: primaryExample,
+      followUpWhyItWorks: topic.teachingSummary,
+      followUpHint1: `Keep the key target words in place while you rewrite the sentence exactly.`,
+      followUpHint2: `Copy the stronger version exactly so the target form stays stable.`,
+      followUpNaturalRewrite: primaryNatural,
+      followUpLevelUpVariants: [
+        { level: topic.baseLevel, text: primaryExample },
+        { level: topic.baseLevel === "A2" ? "B1" : topic.baseLevel, text: primaryNatural },
+        { level: "C1", text: secondaryNatural },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: primaryKeywords,
+        errorTag: `${structureKey}_safe_choice`,
+        commonSlip: topic.commonMistakes[0] ?? `Dropping the target form under pressure.`,
+        severity: "medium",
+      },
       structureKey,
       levelBand: topic.baseLevel,
       supportObjective: topic.supportObjective,
       topic: topic.categoryPath.at(-1)?.toLowerCase() ?? topic.family.toLowerCase(),
-      memoryAnchor: true,
+      memoryAnchor: false,
       acceptedAnswer: primaryExample,
       whyItWorks: topic.teachingSummary,
-      hint1: `Think about when ${topic.title.toLowerCase()} is most useful.`,
-      hint2: topic.whenToUse,
+      hint1: `Keep the key target words in place while you rewrite the sentence exactly.`,
+      hint2: `Copy the stronger version exactly so the target form stays stable.`,
       naturalRewrite: primaryNatural,
       levelUpVariants: [
         { level: topic.baseLevel, text: primaryExample },
@@ -1758,25 +2206,28 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
         { level: "C1", text: secondaryNatural },
       ],
       evaluationRubric: {
-        requiredTokens: fallbackKeywords,
-        preferredPhrases: [topic.title.toLowerCase()],
-        errorTag: `${structureKey}_control`,
+        requiredTokens: primaryKeywords,
+        errorTag: `${structureKey}_safe_choice`,
         commonSlip: topic.commonMistakes[0] ?? `Losing control over ${topic.title.toLowerCase()} under pressure.`,
         severity: "medium",
       },
     },
     {
-      prompt: `Rewrite this more naturally with ${topic.title.toLowerCase()}: ${fallbackExamples[0] ?? `Use ${topic.title.toLowerCase()} more clearly.`}`,
-      promptType: "rewrite",
+      prompt: buildSafeFallbackCompletionPrompt(primaryExample, primaryKeywords),
+      promptType: "completion",
+      contentSource: "safe_fallback",
+      feedbackStrategy: "generic",
+      groundingTargets: primaryKeywords,
+      allowOpenProduction: false,
       structureKey,
       levelBand: topic.baseLevel,
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: false,
       acceptedAnswer: primaryExample,
-      whyItWorks: topic.whenToUse,
-      hint1: `Keep the idea, but make the ${topic.title.toLowerCase()} choice more controlled.`,
-      hint2: topic.commonMistakes[0] ?? `Watch for an awkward or too literal choice.`,
+      whyItWorks: `The sentence keeps the target pattern complete instead of dropping one of its key parts.`,
+      hint1: `Restore the missing target word so the sentence sounds complete again.`,
+      hint2: topic.whenToUse,
       naturalRewrite: primaryNatural,
       levelUpVariants: [
         { level: topic.baseLevel, text: primaryExample },
@@ -1784,49 +2235,90 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
         { level: "C1", text: secondaryNatural },
       ],
       evaluationRubric: {
-        requiredTokens: fallbackKeywords,
-        errorTag: `${structureKey}_rewrite`,
-        commonSlip: topic.commonMistakes[1] ?? topic.commonMistakes[0] ?? `Breaking the pattern while rewriting.`,
+        requiredTokens: primaryKeywords,
+        errorTag: `${structureKey}_safe_completion`,
+        commonSlip: topic.commonMistakes[0] ?? `Leaving out one of the target pieces under pressure.`,
         severity: "medium",
       },
     },
     {
-      prompt: `Use these ideas in one sentence: ${fallbackKeywords.join(", ")}.`,
+      prompt: `Use these target words in one sentence: ${primaryKeywords.join(", ")}.`,
       promptType: "guided_generation",
+      contentSource: "safe_fallback",
+      feedbackStrategy: "generic",
+      groundingTargets: primaryKeywords,
+      allowOpenProduction: false,
       structureKey,
       levelBand: topic.baseLevel,
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: false,
-      acceptedAnswer: secondaryExample,
+      acceptedAnswer: primaryExample,
       whyItWorks: `The sentence uses ${topic.title.toLowerCase()} with the intended focus instead of forcing it.`,
       hint1: "Turn the key words into one connected idea.",
       hint2: topic.whenNotToUse,
-      naturalRewrite: secondaryNatural,
+      naturalRewrite: primaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: secondaryExample },
-        { level: "B2", text: secondaryNatural },
-        { level: "C1", text: tertiaryNatural },
+        { level: topic.baseLevel, text: primaryExample },
+        { level: "B2", text: primaryNatural },
+        { level: "C1", text: secondaryNatural },
       ],
       evaluationRubric: {
-        requiredTokens: fallbackKeywords,
-        errorTag: `${structureKey}_guided`,
+        requiredTokens: primaryKeywords,
+        errorTag: `${structureKey}_safe_guided`,
         commonSlip: topic.commonMistakes[0] ?? `The ideas stay disconnected instead of forming a usable sentence.`,
         severity: "medium",
       },
     },
     {
-      prompt: `Correct the weak sentence using ${topic.title.toLowerCase()}: This sentence needs more control.`,
-      promptType: "error_correction",
+      prompt: `Which sentence keeps ${topic.title.toLowerCase()} more clearly?`,
+      promptType: "rewrite",
+      contentSource: "safe_fallback",
+      feedbackStrategy: "generic",
+      groundingTargets: secondaryKeywords,
+      allowOpenProduction: false,
+      interactionType: "hybrid_choice_text",
+      choiceOptions: [
+        { id: "A", text: secondaryExample },
+        { id: "B", text: secondaryWeakOption },
+      ],
+      correctChoiceId: "A",
+      choiceFeedbackByOption: {
+        B: {
+          whatWentWrong:
+            `This version weakens the target pattern, so the structure stops sounding dependable.`,
+          why: topic.commonMistakes[1] ?? topic.commonMistakes[0] ?? `One key part of the pattern is missing.`,
+          whatFitsInstead: `Choose "${secondaryExample}" to keep the pattern intact.`,
+        },
+      },
+      followUpPrompt: "Rewrite only the better sentence exactly before moving on.",
+      followUpPromptType: "rewrite",
+      followUpMode: "exact_rewrite",
+      followUpAcceptedAnswer: secondaryExample,
+      followUpWhyItWorks: `The sentence keeps the target form intact.`,
+      followUpHint1: `Rewrite the stronger version exactly.`,
+      followUpHint2: `Keep the target words in the sentence when you copy it.`,
+      followUpNaturalRewrite: secondaryNatural,
+      followUpLevelUpVariants: [
+        { level: topic.baseLevel, text: secondaryExample },
+        { level: "B2", text: secondaryNatural },
+        { level: "C1", text: tertiaryNatural },
+      ],
+      followUpEvaluationRubric: {
+        requiredTokens: secondaryKeywords,
+        errorTag: `${structureKey}_safe_choice`,
+        commonSlip: topic.commonMistakes[1] ?? topic.commonMistakes[0] ?? `One key part of the pattern is missing.`,
+        severity: "medium",
+      },
       structureKey,
       levelBand: topic.baseLevel,
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
       memoryAnchor: false,
       acceptedAnswer: secondaryExample,
-      whyItWorks: `The correction fixes the main slip and keeps the sentence usable.`,
-      hint1: "The problem is not meaning. It is the language choice.",
-      hint2: topic.commonMistakes[0] ?? `Repair the part that sounds too weak or unnatural.`,
+      whyItWorks: `The sentence keeps the pattern intact instead of weakening it.`,
+      hint1: `Rewrite the stronger version exactly.`,
+      hint2: `Keep the target words in the sentence when you copy it.`,
       naturalRewrite: secondaryNatural,
       levelUpVariants: [
         { level: topic.baseLevel, text: secondaryExample },
@@ -1834,34 +2326,38 @@ function createFallbackBlueprints(structureKey: string): PracticeBlueprint[] {
         { level: "C1", text: tertiaryNatural },
       ],
       evaluationRubric: {
-        requiredTokens: fallbackKeywords,
-        errorTag: `${structureKey}_correction`,
-        commonSlip: topic.commonMistakes[0] ?? `The main mistake survives the correction.`,
-        severity: "high",
+        requiredTokens: secondaryKeywords,
+        errorTag: `${structureKey}_safe_choice`,
+        commonSlip: topic.commonMistakes[1] ?? topic.commonMistakes[0] ?? `The pattern weakens when a key part disappears.`,
+        severity: "medium",
       },
     },
     {
-      prompt: `Write one final sentence that proves you can use ${topic.title.toLowerCase()} in a more open context.`,
-      promptType: "free_production",
+      prompt: `Use these target words in one sentence: ${secondaryKeywords.join(", ")}.`,
+      promptType: "guided_generation",
+      contentSource: "safe_fallback",
+      feedbackStrategy: "generic",
+      groundingTargets: secondaryKeywords,
+      allowOpenProduction: false,
       structureKey,
       levelBand: topic.baseLevel,
       supportObjective: topic.supportObjective,
       topic: topic.family.toLowerCase(),
-      memoryAnchor: true,
-      acceptedAnswer: tertiaryExample,
-      whyItWorks: topic.supportObjective,
-      hint1: "Make the sentence personal or specific enough to feel real.",
-      hint2: `Use ${topic.title.toLowerCase()} in a context that sounds natural, not memorized.`,
+      memoryAnchor: false,
+      acceptedAnswer: secondaryExample,
+      whyItWorks: `The sentence keeps the target words connected in a usable way.`,
+      hint1: "Turn the target words into one clear sentence.",
+      hint2: topic.whenToUse,
       naturalRewrite: tertiaryNatural,
       levelUpVariants: [
-        { level: topic.baseLevel, text: tertiaryExample },
-        { level: "B2", text: tertiaryNatural },
+        { level: topic.baseLevel, text: secondaryExample },
+        { level: "B2", text: secondaryNatural },
         { level: "C1", text: tertiaryNatural },
       ],
       evaluationRubric: {
-        requiredTokens: fallbackKeywords,
-        errorTag: `${structureKey}_free`,
-        commonSlip: topic.commonMistakes[2] ?? topic.commonMistakes[0] ?? `The open sentence still does not sound controlled.`,
+        requiredTokens: secondaryKeywords,
+        errorTag: `${structureKey}_safe_guided`,
+        commonSlip: topic.commonMistakes[2] ?? topic.commonMistakes[0] ?? `The sentence still loses the target pattern under pressure.`,
         severity: "medium",
       },
     },
@@ -1978,7 +2474,23 @@ function applyPromptVariant(
 }
 
 export function getPracticeBlueprints(structureKey: string) {
-  return practiceBlueprintBank[structureKey] ?? createFallbackBlueprints(structureKey);
+  const blueprints = practiceBlueprintBank[structureKey] ?? createFallbackBlueprints(structureKey);
+
+  return blueprints.map((blueprint) => ({
+    ...blueprint,
+    contentSource: blueprint.contentSource ?? "authored_bank",
+    feedbackStrategy:
+      blueprint.feedbackStrategy ??
+      (structureKey === "reported-speech"
+        ? "reported_speech"
+        : structureKey === "spoken-chunks"
+          ? "spoken_chunk"
+          : "generic"),
+    groundingTargets: blueprint.groundingTargets ?? blueprint.evaluationRubric.requiredTokens,
+    allowOpenProduction:
+      blueprint.allowOpenProduction ??
+      (blueprint.promptType === "memory_anchor" || blueprint.promptType === "free_production"),
+  }));
 }
 
 export function getPracticeBlueprintVariants(

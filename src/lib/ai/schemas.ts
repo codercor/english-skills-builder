@@ -38,6 +38,9 @@ export const promptPayloadSchema = z.object({
 });
 
 export const feedbackPayloadSchema = z.object({
+  feedbackSource: z.enum(["authored_bank", "safe_fallback", "llm"]).optional(),
+  feedbackConfidence: z.enum(["grounded", "low_confidence"]).optional(),
+  scoreVisible: z.boolean().optional(),
   highlightedSpans: z.array(
     z.object({
       text: z.string(),

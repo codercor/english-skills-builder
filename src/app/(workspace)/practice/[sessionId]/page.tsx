@@ -1,6 +1,11 @@
+import { headers } from "next/headers";
 import { PracticeSessionClient } from "@/components/practice-session-client";
 import { SetupState } from "@/components/setup-state";
-import { getOrCreatePracticeSession, getWorkspaceStatus } from "@/lib/server/learning";
+import {
+  getOrCreatePracticeSession,
+  getPracticeNavSnapshot,
+  getWorkspaceStatus,
+} from "@/lib/server/learning";
 import { getViewer } from "@/lib/session";
 
 export default async function PracticeSessionPage({
@@ -37,6 +42,7 @@ export default async function PracticeSessionPage({
   }
 
   const session = await getOrCreatePracticeSession(viewer, sessionId);
+  const referrerHref = (await headers()).get("referer");
 
   if (!session) {
     return (
@@ -50,5 +56,7 @@ export default async function PracticeSessionPage({
     );
   }
 
-  return <PracticeSessionClient session={session} />;
+  const nav = await getPracticeNavSnapshot(viewer, session, referrerHref);
+
+  return <PracticeSessionClient nav={nav} session={session} />;
 }

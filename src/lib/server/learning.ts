@@ -31,6 +31,7 @@ import {
   parseVocabularyReviewPrompt,
 } from "@/lib/data/vocabulary-targets";
 import {
+  builderRouteSegment,
   getBuilderKinds,
   getBuilderMeta,
   getStructureUnit,
@@ -81,6 +82,7 @@ import type {
   MasteryRecord,
   OpsSnapshot,
   PracticeSession,
+  PracticeNavSnapshot,
   PracticeSessionSummary,
   PromptType,
   ProfileSnapshot,
@@ -102,6 +104,9 @@ import {
 } from "@/lib/utils";
 import type { OnboardingProfile } from "@/lib/onboarding";
 import {
+  buildTopicSessionHref,
+  getBuilderCatalogSnapshot,
+  getTopicProgressSnapshots,
   getBuildersHubSnapshot,
   getVocabularyItemProgressMap,
 } from "@/lib/server/topic-views";
@@ -909,6 +914,12 @@ function toMetadata(blueprint: PracticeBlueprint) {
     supportObjective: blueprint.supportObjective,
     topic: blueprint.topic,
     memoryAnchor: blueprint.memoryAnchor,
+    contentSource: blueprint.contentSource ?? "authored_bank",
+    feedbackStrategy: blueprint.feedbackStrategy ?? "generic",
+    groundingTargets: blueprint.groundingTargets ?? blueprint.evaluationRubric.requiredTokens,
+    allowOpenProduction:
+      blueprint.allowOpenProduction ??
+      (blueprint.promptType === "memory_anchor" || blueprint.promptType === "free_production"),
     interactionType: blueprint.interactionType ?? (blueprint.promptType === "completion" ? "completion" : "text"),
     choiceOptions: blueprint.choiceOptions ?? null,
     correctChoiceId: blueprint.correctChoiceId ?? null,
@@ -977,6 +988,10 @@ function mapPracticeRowsToSession(
       supportObjective: string;
       topic: string;
       memoryAnchor: boolean;
+      contentSource?: PracticeSession["items"][number]["contentSource"];
+      feedbackStrategy?: PracticeSession["items"][number]["feedbackStrategy"];
+      groundingTargets?: string[];
+      allowOpenProduction?: boolean;
       interactionType?: PracticeSession["items"][number]["interactionType"];
       choiceOptions?: PracticeSession["items"][number]["choiceOptions"] | null;
       correctChoiceId?: string | null;
@@ -1009,6 +1024,12 @@ function mapPracticeRowsToSession(
       id: row.id,
       prompt: row.prompt,
       promptType: row.promptType as PracticeSession["items"][number]["promptType"],
+      contentSource: metadata.contentSource ?? "authored_bank",
+      feedbackStrategy: metadata.feedbackStrategy ?? "generic",
+      groundingTargets: metadata.groundingTargets ?? metadata.evaluationRubric.requiredTokens,
+      allowOpenProduction:
+        metadata.allowOpenProduction ??
+        (row.promptType === "memory_anchor" || row.promptType === "free_production"),
       interactionType:
         metadata.interactionType ??
         (row.promptType === "completion" ? "completion" : "text"),
@@ -1056,8 +1077,9 @@ function mapPracticeRowsToSession(
           ? "Recall the pattern, see it in context, then use it across five guided prompts."
           : learningMode === "challenge"
             ? "Push this topic into more open production without losing control."
-        : "Build clean control through correction, not passive reading.",
+          : "Build clean control through correction, not passive reading.",
     mode: sessionRow.mode as PracticeSession["mode"],
+    sessionCompleted: sessionRow.learningScore !== null,
     learningMode,
     builderKind: unit.builderKind,
     topicKey: sessionRow.primaryStructure,
@@ -1082,6 +1104,126 @@ function mapPracticeRowsToSession(
 function pickBlueprints(structureKey: string) {
   const blueprints = getPracticeBlueprints(structureKey);
   return blueprints.slice(0, 5);
+}
+
+function toPracticeNavShortcut(
+  topic: {
+    builderKind: BuilderKind;
+    topicKey: string;
+    title: string;
+    stateLabel: string;
+    recommendedAction: PracticeSession["learningMode"];
+    reviewDueCount: number;
+    attempts: number;
+  },
+): PracticeNavSnapshot["recentTargets"][number] {
+  const status =
+    topic.reviewDueCount > 0
+      ? "review"
+      : topic.attempts > 0
+        ? "continue"
+        : "recommended";
+
+  return {
+    builderKind: topic.builderKind,
+    title: topic.title,
+    href: buildTopicSessionHref(topic.builderKind, topic.topicKey, topic.recommendedAction),
+    stateLabel:
+      status === "review"
+        ? `${topic.reviewDueCount} due`
+        : status === "continue"
+          ? topic.stateLabel
+          : "Recommended",
+    status,
+  };
+}
+
+function normalizePracticeReferrerHref(referrerHref: string | null | undefined) {
+  if (!referrerHref) {
+    return null;
+  }
+
+  try {
+    const url = new URL(referrerHref);
+    const href = `${url.pathname}${url.search}`;
+
+    if (href.startsWith("/practice/")) {
+      return null;
+    }
+
+    return href;
+  } catch {
+    if (!referrerHref.startsWith("/")) {
+      return null;
+    }
+
+    return referrerHref.startsWith("/practice/") ? null : referrerHref;
+  }
+}
+
+export async function getPracticeNavSnapshot(
+  viewer: Viewer,
+  session: PracticeSession,
+  referrerHref?: string | null,
+): Promise<PracticeNavSnapshot> {
+  const currentTopicHref = `/builders/${builderRouteSegment(session.builderKind)}/${session.topicKey}`;
+  const builderHref = `/builders/${builderRouteSegment(session.builderKind)}`;
+  const [topicProgress, builderCatalog] = await Promise.all([
+    getTopicProgressSnapshots(viewer),
+    getBuilderCatalogSnapshot(viewer, session.builderKind),
+  ]);
+
+  const currentBuilderRecommended = builderCatalog.categories
+    .flatMap((category) => category.topics)
+    .filter((topic) => topic.topicKey !== session.topicKey)
+    .slice(0, 3);
+  const recentTargets = topicProgress
+    .filter((topic) => topic.topicKey !== session.topicKey && topic.lastPracticedAt)
+    .sort((left, right) => {
+      return (
+        new Date(right.lastPracticedAt ?? 0).getTime() -
+        new Date(left.lastPracticedAt ?? 0).getTime()
+      );
+    })
+    .slice(0, 3)
+    .map(toPracticeNavShortcut);
+  const recommendedCandidates = [
+    ...currentBuilderRecommended,
+    ...topicProgress
+      .filter((topic) => topic.topicKey !== session.topicKey)
+      .sort((left, right) => {
+        const leftPriority =
+          (left.builderKind === session.builderKind ? 100 : 0) +
+          (left.reviewDueCount > 0 ? 40 : 0) +
+          (left.state === "not_started" ? 30 : 0) +
+          Math.round(100 - left.masteryScore);
+        const rightPriority =
+          (right.builderKind === session.builderKind ? 100 : 0) +
+          (right.reviewDueCount > 0 ? 40 : 0) +
+          (right.state === "not_started" ? 30 : 0) +
+          Math.round(100 - right.masteryScore);
+        return rightPriority - leftPriority;
+      }),
+  ]
+    .filter(
+      (topic, index, topics) =>
+        topic.topicKey !== session.topicKey &&
+        topics.findIndex((candidate) => candidate.topicKey === topic.topicKey) === index,
+    )
+    .slice(0, 3)
+    .map(toPracticeNavShortcut);
+
+  return {
+    backHref: normalizePracticeReferrerHref(referrerHref) ?? currentTopicHref ?? builderHref ?? "/builders",
+    homeHref: "/home",
+    currentTopic: getStructureUnit(session.topicKey)?.title ?? session.primaryStructure,
+    currentBuilder: getBuilderMeta(session.builderKind).shortTitle,
+    progressLabel: `1 / ${session.items.length}`,
+    hintsEnabled: Boolean(session.microIntro || session.targetItems?.length),
+    recentTargets,
+    recommendedTargets: recommendedCandidates,
+    sessionCompleted: session.sessionCompleted,
+  };
 }
 
 async function getCompletedPracticeSessionsSince(userId: string, since: Date) {

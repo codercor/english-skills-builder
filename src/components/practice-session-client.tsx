@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { Fragment, useMemo, useRef, useState, useTransition } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Menu, Sparkles } from "lucide-react";
 import type {
   FeedbackPayload,
+  PracticeNavSnapshot,
   PracticeItem,
   PracticeSession,
   PracticeSessionSummary,
   RecognitionEvidence,
 } from "@/lib/types";
-import { formatPercent } from "@/lib/utils";
+import { cn, formatPercent } from "@/lib/utils";
+import { PracticeDrawerNav } from "@/components/practice-drawer-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Surface } from "@/components/ui/surface";
@@ -92,10 +95,13 @@ function targetKindLabel(kind: NonNullable<PracticeSession["targetItems"]>[numbe
 }
 
 export function PracticeSessionClient({
+  nav,
   session,
 }: {
+  nav: PracticeNavSnapshot;
   session: PracticeSession;
 }) {
+  const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [draft, setDraft] = useState("");
   const [completionDraft, setCompletionDraft] = useState<string[]>([]);
@@ -111,6 +117,12 @@ export function PracticeSessionClient({
   const [completed, setCompleted] = useState<CompletedItem[]>([]);
   const [summary, setSummary] = useState<PracticeSessionSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [pendingNavigationTarget, setPendingNavigationTarget] = useState<{
+    href: string;
+    label: string;
+  } | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [supportRailOpen, setSupportRailOpen] = useState(false);
   const [supportRailAutoCollapsed, setSupportRailAutoCollapsed] = useState(false);
   const [activeTargetItemKey, setActiveTargetItemKey] = useState<string | null>(null);
@@ -204,6 +216,10 @@ export function PracticeSessionClient({
     Math.round(((currentIndex + (finalAccepted ? 1 : 0)) / session.items.length) * 100),
   );
   const supportToggleLabel = supportRailOpen ? "Hide hints" : "Hints";
+  const sessionCompletedForNavigation = Boolean(summary) || session.sessionCompleted;
+  const drawerProgressLabel = summary
+    ? `${session.items.length} / ${session.items.length}`
+    : `${Math.min(currentIndex + 1, session.items.length)} / ${session.items.length}`;
 
   function collapseSupportRailOnFirstInteraction() {
     if (currentIndex !== 0 || supportRailAutoCollapsed || !supportRailOpen) {
@@ -214,14 +230,50 @@ export function PracticeSessionClient({
     setSupportRailAutoCollapsed(true);
   }
 
+  function closePracticeDrawer() {
+    setIsDrawerOpen(false);
+  }
+
+  function requestNavigation(href: string, label: string) {
+    if (sessionCompletedForNavigation) {
+      closePracticeDrawer();
+      router.push(href);
+      return;
+    }
+
+    setPendingNavigationTarget({ href, label });
+    setShowLeaveConfirm(true);
+  }
+
+  function confirmLeaveSession() {
+    if (!pendingNavigationTarget) {
+      setShowLeaveConfirm(false);
+      return;
+    }
+
+    const targetHref = pendingNavigationTarget.href;
+    setPendingNavigationTarget(null);
+    setShowLeaveConfirm(false);
+    closePracticeDrawer();
+    router.push(targetHref);
+  }
+
+  function cancelLeaveSession() {
+    setShowLeaveConfirm(false);
+    setPendingNavigationTarget(null);
+  }
+
   const scorePreview = useMemo(() => {
-    if (!completed.length) {
+    const visibleCompleted = completed.filter((entry) => entry.feedback.scoreVisible !== false);
+
+    if (!visibleCompleted.length) {
       return 0;
     }
 
-    const total = completed.reduce((sum, entry) => sum + entry.feedback.responseScore, 0);
-    return total / completed.length;
+    const total = visibleCompleted.reduce((sum, entry) => sum + entry.feedback.responseScore, 0);
+    return total / visibleCompleted.length;
   }, [completed]);
+  const hasVisibleScorePreview = completed.some((entry) => entry.feedback.scoreVisible !== false);
 
   function hasInputValue() {
     if (showChoiceStep) {
@@ -410,141 +462,173 @@ export function PracticeSessionClient({
 
   if (summary) {
     return (
-      <Surface className="space-y-5 tonal-card">
-        <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
-          Session summary
-        </Badge>
-        <div>
-          <h2 className="text-3xl font-semibold text-[color:var(--color-ink)]">
-            Learning score {Math.round(summary.learningScore * 100)}
-          </h2>
-          <p className="mt-2 text-sm text-[color:var(--color-muted)]">
-            This session now feeds your mastery map, review queue, and next recommendation with a real before-and-after proof.
-          </p>
-        </div>
-        {summary.proofSnippet ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[1.8rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-              <p className="editorial-kicker">Before</p>
-              <p className="mt-2 text-base leading-7 text-[color:var(--color-ink)]">
-                {summary.proofSnippet.beforeText}
-              </p>
-            </div>
-            <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,#f1e4c8,#f8efe0)] px-4 py-4">
-              <p className="editorial-kicker text-[color:var(--color-hint-ink)]">
-                Better version
-              </p>
-              <p className="mt-2 text-base leading-7 text-[color:var(--color-hint-ink)]">
-                {summary.proofSnippet.afterText}
-              </p>
-            </div>
+      <div
+        className={cn(
+          "mx-auto w-full max-w-7xl gap-4",
+          isDrawerOpen ? "lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]" : "lg:grid lg:grid-cols-[4.5rem_minmax(0,1fr)]",
+        )}
+      >
+        <PracticeDrawerNav
+          isOpen={isDrawerOpen}
+          nav={nav}
+          onNavigate={requestNavigation}
+          sessionCompleted={sessionCompletedForNavigation}
+          onToggleHints={() => setSupportRailOpen((open) => !open)}
+          onToggleOpen={() => setIsDrawerOpen((open) => !open)}
+          progressLabel={drawerProgressLabel}
+          supportAvailable={nav.hintsEnabled}
+          supportRailOpen={supportRailOpen}
+        />
+        <Surface className="space-y-5 tonal-card">
+          <div className="flex items-center justify-between gap-3 lg:hidden">
+            <button
+              aria-label="Open practice menu"
+              className="flex size-11 items-center justify-center rounded-full bg-[color:var(--color-soft)] text-[color:var(--color-primary)] transition hover:bg-[rgba(15,76,92,0.08)]"
+              onClick={() => setIsDrawerOpen(true)}
+              type="button"
+            >
+              <Menu className="size-4" />
+            </button>
+            <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
+              Session summary
+            </Badge>
           </div>
-        ) : null}
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-            <p className="editorial-kicker">
-              What improved
-            </p>
-            <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
-              {summary.improvedBecause}
-            </p>
-          </div>
-          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-            <p className="editorial-kicker">
-              What still slips
-            </p>
-            <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
-              {summary.stillSlips}
+          <Badge className="hidden bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none lg:inline-flex">
+            Session summary
+          </Badge>
+          <div>
+            <h2 className="text-3xl font-semibold text-[color:var(--color-ink)]">
+              Learning score {Math.round(summary.learningScore * 100)}
+            </h2>
+            <p className="mt-2 text-sm text-[color:var(--color-muted)]">
+              This session now feeds your mastery map, review queue, and next recommendation with a real before-and-after proof.
             </p>
           </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-            <p className="editorial-kicker">
-              Mastery delta
-            </p>
-            <p className="mt-2 text-2xl font-semibold">
-              +{Math.round(summary.masteryDelta * 100)} pts
-            </p>
-          </div>
-          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-            <p className="editorial-kicker">
-              Review items created
-            </p>
-            <p className="mt-2 text-2xl font-semibold">{summary.reviewItemsCreated}</p>
-          </div>
-          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-            <p className="editorial-kicker">
-              Streak change
-            </p>
-            <p className="mt-2 text-2xl font-semibold">{summary.streakChange}</p>
-          </div>
-          <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
-            <p className="editorial-kicker">
-              League impact
-            </p>
-            <p className="mt-2 text-2xl font-semibold">{summary.leagueImpact}</p>
-          </div>
-        </div>
-        <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] p-5 text-white shadow-[0_24px_52px_rgba(25,28,29,0.1)]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="editorial-kicker text-white/60">
-                Best next recommendation
-              </p>
-              <h3 className="mt-2 text-xl font-semibold">{summary.recommendationTitle}</h3>
-              <p className="mt-2 text-sm text-white/72">
-                {summary.recommendationReason}
-              </p>
-              {summary.nextAction.reason ? (
-                <p className="mt-3 text-sm text-white/72">
-                  {summary.nextAction.reason}
+          {summary.proofSnippet ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-[1.8rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                <p className="editorial-kicker">Before</p>
+                <p className="mt-2 text-base leading-7 text-[color:var(--color-ink)]">
+                  {summary.proofSnippet.beforeText}
                 </p>
-              ) : null}
+              </div>
+              <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,#f1e4c8,#f8efe0)] px-4 py-4">
+                <p className="editorial-kicker text-[color:var(--color-hint-ink)]">
+                  Better version
+                </p>
+                <p className="mt-2 text-base leading-7 text-[color:var(--color-hint-ink)]">
+                  {summary.proofSnippet.afterText}
+                </p>
+              </div>
             </div>
-            <Sparkles className="size-6 shrink-0 text-[color:var(--color-coral)]" />
+          ) : null}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">What improved</p>
+              <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
+                {summary.improvedBecause}
+              </p>
+            </div>
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">What still slips</p>
+              <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
+                {summary.stillSlips}
+              </p>
+            </div>
           </div>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link href={summary.nextAction.href}>
-              <Button size="lg">
-                {summary.nextAction.label}
-              </Button>
-            </Link>
-            {summary.followUpActions.map((action) => (
-              <Link href={action.href} key={action.label}>
-                <Button
-                  className="bg-white/14 text-white shadow-none hover:bg-white/20 hover:text-white"
-                  size="lg"
-                  variant="secondary"
-                >
-                  {action.label}
-                </Button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">Mastery delta</p>
+              <p className="mt-2 text-2xl font-semibold">+{Math.round(summary.masteryDelta * 100)} pts</p>
+            </div>
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">Review items created</p>
+              <p className="mt-2 text-2xl font-semibold">{summary.reviewItemsCreated}</p>
+            </div>
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">Streak change</p>
+              <p className="mt-2 text-2xl font-semibold">{summary.streakChange}</p>
+            </div>
+            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] p-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <p className="editorial-kicker">League impact</p>
+              <p className="mt-2 text-2xl font-semibold">{summary.leagueImpact}</p>
+            </div>
+          </div>
+          <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] p-5 text-white shadow-[0_24px_52px_rgba(25,28,29,0.1)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="editorial-kicker text-white/60">Best next recommendation</p>
+                <h3 className="mt-2 text-xl font-semibold">{summary.recommendationTitle}</h3>
+                <p className="mt-2 text-sm text-white/72">{summary.recommendationReason}</p>
+                {summary.nextAction.reason ? (
+                  <p className="mt-3 text-sm text-white/72">{summary.nextAction.reason}</p>
+                ) : null}
+              </div>
+              <Sparkles className="size-6 shrink-0 text-[color:var(--color-coral)]" />
+            </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Link href={summary.nextAction.href}>
+                <Button size="lg">{summary.nextAction.label}</Button>
               </Link>
-            ))}
+              {summary.followUpActions.map((action) => (
+                <Link href={action.href} key={action.label}>
+                  <Button
+                    className="bg-white/14 text-white shadow-none hover:bg-white/20 hover:text-white"
+                    size="lg"
+                    variant="secondary"
+                  >
+                    {action.label}
+                  </Button>
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
-      </Surface>
+        </Surface>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4">
+    <div
+      className={cn(
+        "mx-auto w-full max-w-7xl gap-4",
+        isDrawerOpen ? "lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]" : "lg:grid lg:grid-cols-[4.5rem_minmax(0,1fr)]",
+      )}
+    >
+      <PracticeDrawerNav
+        isOpen={isDrawerOpen}
+        nav={nav}
+        onNavigate={requestNavigation}
+        sessionCompleted={sessionCompletedForNavigation}
+        onToggleHints={() => setSupportRailOpen((open) => !open)}
+        onToggleOpen={() => setIsDrawerOpen((open) => !open)}
+        progressLabel={drawerProgressLabel}
+        supportAvailable={supportRailAvailable}
+        supportRailOpen={supportRailOpen}
+      />
       <Surface ref={activeCardRef} className="space-y-6 tonal-card">
         <div className="space-y-4 border-b border-[rgba(192,200,203,0.15)] pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[color:var(--color-muted)]">
-                {builderLabel(session.builderKind)} lesson
+                {builderLabel(session.builderKind)}
               </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[color:var(--color-muted)]">
-                <span className="font-semibold text-[color:var(--color-ink)]">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-2xl font-semibold text-[color:var(--color-ink)]">
                   {session.primaryStructure}
                 </span>
-                <span className="inline-block size-1 rounded-full bg-[rgba(192,200,203,0.9)]" />
-                <span>{item.levelBand}</span>
+                <span className="text-sm text-[color:var(--color-muted)]">• {item.levelBand}</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                aria-label="Open practice menu"
+                className="flex size-11 items-center justify-center rounded-full bg-[color:var(--color-soft)] text-[color:var(--color-primary)] transition hover:bg-[rgba(15,76,92,0.08)] lg:hidden"
+                onClick={() => setIsDrawerOpen(true)}
+                type="button"
+              >
+                <Menu className="size-4" />
+              </button>
               {supportRailAvailable ? (
                 <button
                   className="rounded-full bg-[color:var(--color-soft)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-primary)] transition hover:bg-[rgba(15,76,92,0.08)]"
@@ -559,7 +643,7 @@ export function PracticeSessionClient({
                   {currentIndex + 1} / {session.items.length}
                 </p>
                 <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-muted)]">
-                  {formatPercent(scorePreview)} preview
+                  {hasVisibleScorePreview ? `${formatPercent(scorePreview)} preview` : "Preview"}
                 </p>
               </div>
             </div>
@@ -850,7 +934,9 @@ export function PracticeSessionClient({
                     </div>
                   </div>
                   <div className="shrink-0 text-right text-sm text-[color:var(--color-muted)]">
-                    {recognitionFeedback.recognitionEvidence ? (
+                    {recognitionFeedback.scoreVisible === false ? (
+                      <p>Guided check</p>
+                    ) : recognitionFeedback.recognitionEvidence ? (
                       <p>Attempt {recognitionFeedback.recognitionEvidence.choiceAttempts} / 2</p>
                     ) : (
                       <p>{Math.round(recognitionFeedback.responseScore * 100)} score</p>
@@ -902,9 +988,13 @@ export function PracticeSessionClient({
                     </p>
                   </div>
                   <div className="shrink-0 text-right text-sm text-[color:var(--color-muted)]">
-                    <p className="font-semibold text-[color:var(--color-ink)]">
-                      {exactRewriteFollowUp ? "Keep it exact" : `${Math.round(textFeedback.responseScore * 100)} score`}
-                    </p>
+                    {textFeedback.scoreVisible === false ? (
+                      <p className="font-semibold text-[color:var(--color-ink)]">Guided check</p>
+                    ) : (
+                      <p className="font-semibold text-[color:var(--color-ink)]">
+                        {exactRewriteFollowUp ? "Keep it exact" : `${Math.round(textFeedback.responseScore * 100)} score`}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <details className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
@@ -948,13 +1038,19 @@ export function PracticeSessionClient({
           </div>
         </div>
         {finalAccepted ? (
-          <div className="space-y-4 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Badge className="bg-[color:var(--color-success)] text-[color:var(--color-success-ink)] shadow-none">
-                Accepted
-              </Badge>
-              <Badge>{Math.round((feedback?.responseScore ?? 0) * 100)} score</Badge>
-            </div>
+            <div className="space-y-4 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Badge className="bg-[color:var(--color-success)] text-[color:var(--color-success-ink)] shadow-none">
+                  Accepted
+                </Badge>
+                {feedback?.scoreVisible === false ? (
+                  <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
+                    Guided check
+                  </Badge>
+                ) : (
+                  <Badge>{Math.round((feedback?.responseScore ?? 0) * 100)} score</Badge>
+                )}
+              </div>
             <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
               <p className="editorial-kicker">
                 Your sentence
@@ -1056,6 +1152,29 @@ export function PracticeSessionClient({
           Each answer updates scoring, mastery, review timing, and the next recommendation.
         </p>
       </Surface>
+      {showLeaveConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(25,28,29,0.34)] px-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-[2rem] bg-[color:var(--color-panel)] p-6 shadow-[0_32px_72px_rgba(25,28,29,0.18)]">
+            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-muted)]">
+              Leave practice?
+            </p>
+            <h3 className="mt-3 text-2xl font-semibold text-[color:var(--color-ink)]">
+              Your current session is not finished yet.
+            </h3>
+            <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
+              If you open {pendingNavigationTarget?.label?.toLowerCase() ?? "another screen"} now, this in-progress answer flow will be lost.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Button className="flex-1" onClick={confirmLeaveSession} size="lg">
+                Leave session
+              </Button>
+              <Button className="flex-1" onClick={cancelLeaveSession} size="lg" variant="secondary">
+                Stay here
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

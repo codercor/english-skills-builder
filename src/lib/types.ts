@@ -204,6 +204,9 @@ export interface RecognitionFeedbackCopy {
 export interface FeedbackPayload {
   itemId: string;
   structureKey: string;
+  feedbackSource: "authored_bank" | "safe_fallback" | "llm";
+  feedbackConfidence: "grounded" | "low_confidence";
+  scoreVisible?: boolean;
   taskStep?: PracticeTaskStep;
   itemResolved?: boolean;
   opensFollowUp?: boolean;
@@ -229,6 +232,10 @@ export interface PracticeItem {
   id: string;
   prompt: string;
   promptType: PromptType;
+  contentSource?: "authored_bank" | "safe_fallback";
+  feedbackStrategy?: "generic" | "reported_speech" | "spoken_chunk";
+  groundingTargets?: string[];
+  allowOpenProduction?: boolean;
   interactionType?: PracticeInteractionType;
   choiceOptions?: ChoiceOption[];
   correctChoiceId?: string;
@@ -289,6 +296,7 @@ export interface PracticeSession {
   title: string;
   description: string;
   mode: SessionMode;
+  sessionCompleted: boolean;
   learningMode: LearningMode;
   builderKind: BuilderKind;
   topicKey: string;
@@ -336,6 +344,26 @@ export interface PracticeSessionSummary {
   stillSlips: string;
   nextAction: PracticeSessionAction;
   followUpActions: PracticeSessionAction[];
+}
+
+export interface PracticeNavShortcut {
+  builderKind: BuilderKind;
+  title: string;
+  href: string;
+  stateLabel: string;
+  status: "continue" | "review" | "recommended";
+}
+
+export interface PracticeNavSnapshot {
+  backHref: string;
+  homeHref: string;
+  currentTopic: string;
+  currentBuilder: string;
+  progressLabel: string;
+  hintsEnabled: boolean;
+  recentTargets: PracticeNavShortcut[];
+  recommendedTargets: PracticeNavShortcut[];
+  sessionCompleted: boolean;
 }
 
 export interface ReviewItem {

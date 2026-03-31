@@ -83,7 +83,12 @@ export async function evaluateWithLLM(
   item: PracticeItem,
   responseText: string,
   attemptNumber: number,
-): Promise<Omit<FeedbackPayload, "itemId" | "structureKey"> | null> {
+): Promise<
+  Omit<
+    FeedbackPayload,
+    "itemId" | "structureKey" | "feedbackSource" | "feedbackConfidence" | "scoreVisible"
+  > | null
+> {
   if (!openai) {
     return null;
   }
@@ -97,6 +102,8 @@ export async function evaluateWithLLM(
     "If there is a spelling mistake, malformed word form, or obviously wrong surface form, call it out directly in issues, highlightedSpans, and errorTags.",
     "Mark exactly one issue as fixFirst when the answer is not accepted. Pick the single issue that would unlock the biggest improvement on the next try.",
     "Issue summaries should explain what is wrong and why it matters. Issue hints should tell the learner what to change next.",
+    "Do not mention words, phrases, or examples that are not in the learner response or in the task's explicit required targets.",
+    "Ground the feedback in the actual learner sentence before you mention broader target goals.",
     JSON.stringify(
       {
         prompt: item.prompt,
