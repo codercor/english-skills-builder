@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Menu, Sparkles } from "lucide-react";
 import type {
@@ -13,6 +13,7 @@ import type {
   RecognitionEvidence,
 } from "@/lib/types";
 import { cn, formatPercent } from "@/lib/utils";
+import { calculateSpeedBonus } from "@/lib/engine/scoring";
 import { PracticeDrawerNav } from "@/components/practice-drawer-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,34 @@ function targetKindLabel(kind: NonNullable<PracticeSession["targetItems"]>[numbe
   return "Word";
 }
 
+function formatElapsedTimer(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function speedProfileForClient(item: PracticeItem, showChoiceStep: boolean) {
+  if (showChoiceStep) {
+    return "recognition" as const;
+  }
+
+  if (
+    item.followUpMode === "exact_rewrite" ||
+    item.promptType === "completion" ||
+    item.promptType === "rewrite" ||
+    item.promptType === "guided_generation" ||
+    item.promptType === "constraint_based" ||
+    item.promptType === "error_correction"
+  ) {
+    return "controlled" as const;
+  }
+
+  return null;
+}
+
 export function PracticeSessionClient({
   nav,
   session,
@@ -129,6 +158,7 @@ export function PracticeSessionClient({
   const [isPending, startSubmit] = useTransition();
   const [isCompleting, startComplete] = useTransition();
   const [attemptStartedAt, setAttemptStartedAt] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const completionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const activeCardRef = useRef<HTMLElement>(null);
@@ -220,6 +250,26 @@ export function PracticeSessionClient({
   const drawerProgressLabel = summary
     ? `${session.items.length} / ${session.items.length}`
     : `${Math.min(currentIndex + 1, session.items.length)} / ${session.items.length}`;
+  const currentLatencyMs = nowMs - attemptStartedAt;
+  const currentTimerLabel = formatElapsedTimer(currentLatencyMs);
+  const speedProfile = speedProfileForClient(item, showChoiceStep);
+  const liveSpeedBonus = speedProfile ? calculateSpeedBonus(currentLatencyMs, speedProfile) : 0;
+
+  useEffect(() => {
+    if (summary || finalAccepted) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [finalAccepted, summary]);
+
+  useEffect(() => {
+    setNowMs(attemptStartedAt);
+  }, [attemptStartedAt]);
 
   function collapseSupportRailOnFirstInteraction() {
     if (currentIndex !== 0 || supportRailAutoCollapsed || !supportRailOpen) {
@@ -645,6 +695,18 @@ export function PracticeSessionClient({
                 <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-muted)]">
                   {hasVisibleScorePreview ? `${formatPercent(scorePreview)} preview` : "Preview"}
                 </p>
+                <div className="mt-2 space-y-0.5">
+                  <p className="text-sm font-semibold text-[color:var(--color-primary)]">
+                    {currentTimerLabel}
+                  </p>
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-muted)]">
+                    {speedProfile
+                      ? liveSpeedBonus > 0
+                        ? `Speed +${Math.round(liveSpeedBonus * 100)}`
+                        : "Speed bonus faded"
+                      : "Take your time"}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -933,16 +995,21 @@ export function PracticeSessionClient({
                       </p>
                     </div>
                   </div>
-                  <div className="shrink-0 text-right text-sm text-[color:var(--color-muted)]">
-                    {recognitionFeedback.scoreVisible === false ? (
-                      <p>Guided check</p>
-                    ) : recognitionFeedback.recognitionEvidence ? (
-                      <p>Attempt {recognitionFeedback.recognitionEvidence.choiceAttempts} / 2</p>
-                    ) : (
-                      <p>{Math.round(recognitionFeedback.responseScore * 100)} score</p>
-                    )}
-                  </div>
+                <div className="shrink-0 text-right text-sm text-[color:var(--color-muted)]">
+                  {recognitionFeedback.scoreVisible === false ? (
+                    <p>Guided check</p>
+                  ) : recognitionFeedback.recognitionEvidence ? (
+                    <p>Attempt {recognitionFeedback.recognitionEvidence.choiceAttempts} / 2</p>
+                  ) : (
+                    <p>{Math.round(recognitionFeedback.responseScore * 100)} score</p>
+                  )}
+                  {recognitionFeedback.scoreVisible !== false && recognitionFeedback.speedBonusApplied ? (
+                    <p className="mt-1 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-primary)]">
+                      +{Math.round(recognitionFeedback.speedBonusApplied * 100)} speed
+                    </p>
+                  ) : null}
                 </div>
+              </div>
                 <details className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
                   <summary className="cursor-pointer list-none font-semibold text-[color:var(--color-primary)]">
                     See details
@@ -995,6 +1062,11 @@ export function PracticeSessionClient({
                         {exactRewriteFollowUp ? "Keep it exact" : `${Math.round(textFeedback.responseScore * 100)} score`}
                       </p>
                     )}
+                    {textFeedback.scoreVisible !== false && textFeedback.speedBonusApplied ? (
+                      <p className="mt-1 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-primary)]">
+                        +{Math.round(textFeedback.speedBonusApplied * 100)} speed
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <details className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
@@ -1043,13 +1115,20 @@ export function PracticeSessionClient({
                 <Badge className="bg-[color:var(--color-success)] text-[color:var(--color-success-ink)] shadow-none">
                   Accepted
                 </Badge>
-                {feedback?.scoreVisible === false ? (
-                  <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
-                    Guided check
-                  </Badge>
-                ) : (
-                  <Badge>{Math.round((feedback?.responseScore ?? 0) * 100)} score</Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {feedback?.scoreVisible === false ? (
+                    <Badge className="bg-[color:var(--color-soft)] text-[color:var(--color-muted)] shadow-none">
+                      Guided check
+                    </Badge>
+                  ) : (
+                    <Badge>{Math.round((feedback?.responseScore ?? 0) * 100)} score</Badge>
+                  )}
+                  {feedback?.scoreVisible !== false && feedback?.speedBonusApplied ? (
+                    <Badge className="bg-[rgba(15,76,92,0.08)] text-[color:var(--color-primary)] shadow-none">
+                      +{Math.round(feedback.speedBonusApplied * 100)} speed
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
             <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
               <p className="editorial-kicker">

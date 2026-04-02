@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     parsed.data.attemptNumber,
     {
       interactionStep: parsed.data.interactionStep,
+      responseLatencyMs: parsed.data.responseLatencyMs,
       selectedChoiceId: parsed.data.selectedChoiceId,
       recognitionEvidence: parsed.data.recognitionEvidence,
     },

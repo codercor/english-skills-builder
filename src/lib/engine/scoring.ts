@@ -8,6 +8,8 @@ export interface ResponseScoreInput {
   naturalnessQuality: number;
 }
 
+export type SpeedProfile = "recognition" | "controlled";
+
 export function calculateResponseScore(input: ResponseScoreInput) {
   return round(
     clamp(
@@ -18,6 +20,43 @@ export function calculateResponseScore(input: ResponseScoreInput) {
         input.naturalnessQuality * 0.1,
     ),
   );
+}
+
+export function calculateSpeedBonus(
+  latencyMs: number,
+  profile: SpeedProfile,
+) {
+  const seconds = latencyMs / 1000;
+
+  if (profile === "recognition") {
+    if (seconds <= 8) {
+      return 0.06;
+    }
+
+    if (seconds <= 14) {
+      return 0.04;
+    }
+
+    if (seconds <= 22) {
+      return 0.02;
+    }
+
+    return 0;
+  }
+
+  if (seconds <= 14) {
+    return 0.05;
+  }
+
+  if (seconds <= 24) {
+    return 0.03;
+  }
+
+  if (seconds <= 36) {
+    return 0.01;
+  }
+
+  return 0;
 }
 
 export function calculateSessionScore(

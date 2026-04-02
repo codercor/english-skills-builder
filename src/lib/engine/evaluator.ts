@@ -12,7 +12,12 @@ import type {
   RecognitionEvidence,
   RecommendationPayload,
 } from "@/lib/types";
-import { calculateResponseScore, calculateSessionScore } from "@/lib/engine/scoring";
+import {
+  calculateResponseScore,
+  calculateSessionScore,
+  calculateSpeedBonus,
+  type SpeedProfile,
+} from "@/lib/engine/scoring";
 import { clamp, round, tokenize } from "@/lib/utils";
 
 const recognitionEvidenceSchema = z.object({
@@ -275,6 +280,13 @@ function withFeedbackTrust(
 function findPotentialTypo(item: PracticeItem, response: string) {
   const responseTokens = tokenize(response);
   const expectedTokens = groundedExpectedTokens(item);
+  const missingExpectedTokens = expectedTokens.filter(
+    (expected) => bestTokenMatchWeight(expected, responseTokens) === 0,
+  );
+
+  if (!missingExpectedTokens.length) {
+    return null;
+  }
 
   for (const token of responseTokens) {
     if (token.length < 4) {
@@ -285,14 +297,14 @@ function findPotentialTypo(item: PracticeItem, response: string) {
       continue;
     }
 
-    const sharesLexeme = expectedTokens.some(
+    const sharesLexeme = missingExpectedTokens.some(
       (expected) => bestTokenMatchWeight(expected, [token]) > 0,
     );
     if (sharesLexeme) {
       continue;
     }
 
-    const closest = expectedTokens
+    const closest = missingExpectedTokens
       .map((expected) => ({
         expected,
         distance: editDistance(token, expected),
@@ -825,11 +837,13 @@ function toFollowUpItem(item: PracticeItem): PracticeItem {
 function exactRewriteAcceptedFeedback(
   item: PracticeItem,
   attemptNumber: number,
+  responseLatencyMs: number,
 ): Omit<FeedbackPayload, "feedbackSource" | "feedbackConfidence" | "scoreVisible"> {
-  const responseScore =
+  const baseResponseScore =
     attemptNumber === 1 ? 0.82 : attemptNumber === 2 ? 0.74 : 0.68;
   const qualityScore =
     attemptNumber === 1 ? 0.9 : attemptNumber === 2 ? 0.84 : 0.78;
+  const speedBonusApplied = calculateSpeedBonus(responseLatencyMs, "controlled");
 
   return {
     itemId: item.id,
@@ -846,8 +860,11 @@ function exactRewriteAcceptedFeedback(
     naturalRewrite: item.naturalRewrite,
     levelUpVariants: item.levelUpVariants,
     whyItWorks: item.whyItWorks,
+    responseLatencyMs,
+    speedBonusApplied,
+    speedBonusEligible: true,
     qualityScore: round(qualityScore),
-    responseScore: round(responseScore),
+    responseScore: round(clamp(baseResponseScore + speedBonusApplied)),
     shouldUpdateMastery: true,
     isAccepted: true,
     canRevealAnswer: false,
@@ -858,6 +875,7 @@ function exactRewriteMismatchFeedback(
   item: PracticeItem,
   response: string,
   attemptNumber: number,
+  responseLatencyMs: number,
 ): Omit<FeedbackPayload, "feedbackSource" | "feedbackConfidence" | "scoreVisible"> {
   const hasAnyResponse = Boolean(response.trim());
   const summary = hasAnyResponse
@@ -896,6 +914,9 @@ function exactRewriteMismatchFeedback(
     naturalRewrite: item.naturalRewrite,
     levelUpVariants: item.levelUpVariants,
     whyItWorks: item.whyItWorks,
+    responseLatencyMs,
+    speedBonusApplied: 0,
+    speedBonusEligible: true,
     qualityScore: round(attemptNumber >= 2 ? 0.22 : 0.3),
     responseScore: round(attemptNumber >= 2 ? 0.18 : 0.24),
     shouldUpdateMastery: true,
@@ -904,16 +925,39 @@ function exactRewriteMismatchFeedback(
   };
 }
 
+function speedProfileForItem(
+  item: PracticeItem,
+  interactionStep: PracticeTaskStep,
+): SpeedProfile | null {
+  if (interactionStep === "recognition") {
+    return "recognition";
+  }
+
+  if (
+    item.followUpMode === "exact_rewrite" ||
+    item.promptType === "completion" ||
+    item.promptType === "rewrite" ||
+    item.promptType === "guided_generation" ||
+    item.promptType === "constraint_based" ||
+    item.promptType === "error_correction"
+  ) {
+    return "controlled";
+  }
+
+  return null;
+}
+
 async function evaluateTextPracticeItem(
   item: PracticeItem,
   response: string,
   attemptNumber: number,
+  responseLatencyMs: number,
 ): Promise<FeedbackPayload> {
   if (item.followUpMode === "exact_rewrite") {
     if (matchesExactRewrite(item.acceptedAnswer, response)) {
       return withFeedbackTrust(
         item,
-        exactRewriteAcceptedFeedback(item, attemptNumber),
+        exactRewriteAcceptedFeedback(item, attemptNumber, responseLatencyMs),
         item.contentSource ?? "authored_bank",
         { forceGrounded: true },
       );
@@ -921,7 +965,7 @@ async function evaluateTextPracticeItem(
 
     return withFeedbackTrust(
       item,
-      exactRewriteMismatchFeedback(item, response, attemptNumber),
+      exactRewriteMismatchFeedback(item, response, attemptNumber, responseLatencyMs),
       item.contentSource ?? "authored_bank",
       { forceGrounded: true },
     );
@@ -955,13 +999,19 @@ async function evaluateTextPracticeItem(
   const naturalnessQuality = clamp(
     (response.trim().split(/\s+/).length >= 6 ? 0.8 : 0.62) - (potentialTypo ? 0.12 : 0),
   );
-  const responseScore = calculateResponseScore({
+  const baseResponseScore = calculateResponseScore({
     firstTryAccuracy,
     repairSuccess,
     lowHintDependence,
     lowErrorSeverity: clamp(lowErrorSeverity),
     naturalnessQuality,
   });
+  const speedProfile = speedProfileForItem(item, "text");
+  const speedBonusApplied =
+    speedProfile && coverage >= 0.8 && !potentialTypo
+      ? calculateSpeedBonus(responseLatencyMs, speedProfile)
+      : 0;
+  const responseScore = round(clamp(baseResponseScore + speedBonusApplied));
 
   const qualityScore = round(
     clamp((coverage * 0.7 + naturalnessQuality * 0.3) * (attemptNumber > 1 ? 0.92 : 1)),
@@ -1007,6 +1057,9 @@ async function evaluateTextPracticeItem(
     naturalRewrite: item.naturalRewrite,
     levelUpVariants: item.levelUpVariants,
     whyItWorks: item.whyItWorks,
+    responseLatencyMs,
+    speedBonusApplied,
+    speedBonusEligible: Boolean(speedProfile),
     qualityScore,
     responseScore,
     shouldUpdateMastery: true,
@@ -1037,6 +1090,9 @@ function mergeRecognitionEvidence(
     itemResolved: feedback.isAccepted,
     opensFollowUp: false,
     recognitionEvidence,
+    speedBonusApplied: feedback.speedBonusApplied,
+    speedBonusEligible: feedback.speedBonusEligible,
+    responseLatencyMs: feedback.responseLatencyMs,
     responseScore: round(
       clamp(
         (feedback.responseScore * productionWeight +
@@ -1067,6 +1123,7 @@ export async function evaluatePracticeItem(
     interactionStep?: PracticeTaskStep;
     selectedChoiceId?: string;
     recognitionEvidence?: RecognitionEvidence;
+    responseLatencyMs?: number;
   },
 ): Promise<FeedbackPayload> {
   const interactionStep =
@@ -1078,7 +1135,19 @@ export async function evaluatePracticeItem(
       throw new Error("Recognition items require a selected choice.");
     }
 
-    return buildRecognitionFeedback(item, options.selectedChoiceId, attemptNumber);
+    const feedback = buildRecognitionFeedback(item, options.selectedChoiceId, attemptNumber);
+    const speedBonusApplied =
+      feedback.isAccepted && options?.responseLatencyMs !== undefined
+        ? calculateSpeedBonus(options.responseLatencyMs, "recognition")
+        : 0;
+
+    return {
+      ...feedback,
+      responseLatencyMs: options?.responseLatencyMs ?? 0,
+      speedBonusApplied,
+      speedBonusEligible: true,
+      responseScore: round(clamp(feedback.responseScore + speedBonusApplied)),
+    };
   }
 
   const effectiveItem =
@@ -1087,6 +1156,7 @@ export async function evaluatePracticeItem(
     effectiveItem,
     response,
     attemptNumber,
+    options?.responseLatencyMs ?? 0,
   );
 
   return interactionStep === "follow_up"

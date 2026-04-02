@@ -207,6 +207,9 @@ export interface FeedbackPayload {
   feedbackSource: "authored_bank" | "safe_fallback" | "llm";
   feedbackConfidence: "grounded" | "low_confidence";
   scoreVisible?: boolean;
+  responseLatencyMs?: number;
+  speedBonusApplied?: number;
+  speedBonusEligible?: boolean;
   taskStep?: PracticeTaskStep;
   itemResolved?: boolean;
   opensFollowUp?: boolean;
