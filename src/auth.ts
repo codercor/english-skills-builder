@@ -22,6 +22,8 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
 }
 
 export const isAuthConfigured = Boolean(
+  // Treat auth as unavailable unless both the signing secret and a real DB-backed
+  // provider path exist. Many workspace routes assume persisted learner state.
   process.env.AUTH_SECRET && db && providers.length > 0,
 );
 

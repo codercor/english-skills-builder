@@ -1,0 +1,88 @@
+[
+  {
+    "name": "AUTH_EMAIL_FROM",
+    "requiredInProduction": false,
+    "files": [],
+    "description": "Default sender address for auth-related email flows."
+  },
+  {
+    "name": "AUTH_GOOGLE_ID",
+    "requiredInProduction": true,
+    "files": [
+      "src/auth.ts"
+    ],
+    "description": "Google OAuth client ID for Auth.js sign-in."
+  },
+  {
+    "name": "AUTH_GOOGLE_SECRET",
+    "requiredInProduction": true,
+    "files": [
+      "src/auth.ts"
+    ],
+    "description": "Google OAuth client secret for Auth.js sign-in."
+  },
+  {
+    "name": "AUTH_RESEND_KEY",
+    "requiredInProduction": false,
+    "files": [],
+    "description": "Resend API key for email delivery integrations."
+  },
+  {
+    "name": "AUTH_SECRET",
+    "requiredInProduction": true,
+    "files": [
+      "middleware.ts",
+      "src/auth.ts"
+    ],
+    "description": "Auth.js secret used for session signing and middleware token parsing."
+  },
+  {
+    "name": "DATABASE_URL",
+    "requiredInProduction": true,
+    "files": [
+      "drizzle.config.ts",
+      "src/lib/db/client.ts"
+    ],
+    "description": "Primary pooled Postgres connection string used at runtime and by Drizzle."
+  },
+  {
+    "name": "DATABASE_URL_UNPOOLED",
+    "requiredInProduction": false,
+    "files": [],
+    "description": "Direct Postgres connection string for tasks that should avoid pooling."
+  },
+  {
+    "name": "NEXTAUTH_URL",
+    "requiredInProduction": true,
+    "files": [],
+    "description": "Canonical application URL used by Auth.js callbacks."
+  },
+  {
+    "name": "OPENAI_API_KEY",
+    "requiredInProduction": false,
+    "files": [
+      "src/lib/ai/service.ts"
+    ],
+    "description": "OpenAI API key for LLM-based evaluation."
+  },
+  {
+    "name": "OPENAI_MODEL",
+    "requiredInProduction": false,
+    "files": [
+      "src/lib/ai/service.ts"
+    ],
+    "description": "Default model name for LLM-based evaluation."
+  },
+  {
+    "name": "PGHOST",
+    "requiredInProduction": false,
+    "files": [],
+    "description": "Pooled Postgres host helper for platform integrations."
+  },
+  {
+    "name": "PGHOST_UNPOOLED",
+    "requiredInProduction": false,
+    "files": [],
+    "description": "Direct Postgres host helper for platform integrations."
+  }
+]

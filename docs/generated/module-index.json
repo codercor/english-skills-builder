@@ -1,0 +1,67 @@
+[
+  {
+    "module": "auth",
+    "file": "src/auth.ts",
+    "responsibility": "Auth.js provider setup, adapter wiring, and session callbacks."
+  },
+  {
+    "module": "database-client",
+    "file": "src/lib/db/client.ts",
+    "responsibility": "Runtime Postgres client and Drizzle adapter creation."
+  },
+  {
+    "module": "schema",
+    "file": "src/lib/db/schema.ts",
+    "responsibility": "Source of truth for auth and learning persistence tables."
+  },
+  {
+    "module": "catalog",
+    "file": "src/lib/catalog.ts",
+    "responsibility": "Topic catalog and builder metadata used across surfaces."
+  },
+  {
+    "module": "practice-bank",
+    "file": "src/lib/data/practice-bank.ts",
+    "responsibility": "Authored and safe-fallback practice blueprints."
+  },
+  {
+    "module": "vocabulary-targets",
+    "file": "src/lib/data/vocabulary-targets.ts",
+    "responsibility": "Vocabulary item-level teaching content and progress anchors."
+  },
+  {
+    "module": "learning-server",
+    "file": "src/lib/server/learning.ts",
+    "responsibility": "Session creation, review scheduling, profile/progress snapshots, and nav payloads."
+  },
+  {
+    "module": "topic-views",
+    "file": "src/lib/server/topic-views.ts",
+    "responsibility": "Builder hub, catalog, topic detail, and learning map snapshots."
+  },
+  {
+    "module": "evaluator",
+    "file": "src/lib/engine/evaluator.ts",
+    "responsibility": "Practice evaluation, feedback shaping, confidence handling, and fallback logic."
+  },
+  {
+    "module": "scoring",
+    "file": "src/lib/engine/scoring.ts",
+    "responsibility": "Response, session, weekly, and speed bonus scoring."
+  },
+  {
+    "module": "practice-ui",
+    "file": "src/components/practice-session-client.tsx",
+    "responsibility": "Practice runtime UI, hybrid task flow, timer, and drawer behavior."
+  },
+  {
+    "module": "practice-drawer",
+    "file": "src/components/practice-drawer-nav.tsx",
+    "responsibility": "Practice-local navigation rail and mobile drawer."
+  },
+  {
+    "module": "profile",
+    "file": "src/app/(workspace)/profile/page.tsx",
+    "responsibility": "Profile hub for overview, learning map, and progress insights."
+  }
+]

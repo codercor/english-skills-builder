@@ -1,0 +1,15 @@
+{
+  "_notes": "Example hybrid item with recognition first and exact rewrite follow-up.",
+  "interactionType": "hybrid_choice_text",
+  "taskStep": "follow_up",
+  "followUpMode": "exact_rewrite",
+  "referenceSentence": "The report offers an analytical view of the problem.",
+  "recognitionEvidence": {
+    "selectedChoiceId": "a",
+    "correctChoiceId": "a",
+    "choiceAttempts": 1,
+    "revealed": false,
+    "correct": true,
+    "score": 0.2
+  }
+}

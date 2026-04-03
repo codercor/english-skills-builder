@@ -2321,6 +2321,9 @@ export async function getOrCreatePracticeSession(
 
   const manualTopicRequest = parseTopicSessionSlug(sessionIdOrSlug);
   if (manualTopicRequest) {
+    // Manual entry must still flow through the same session, review, and mastery
+    // engine as recommendation-led entry. Builders are navigation surfaces, not
+    // alternate learning backends.
     const targetLevel =
       manualTopicRequest.topic.skillArea === "grammar"
         ? (profile.grammarControl as LevelBand)

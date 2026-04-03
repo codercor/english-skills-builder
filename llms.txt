@@ -1,0 +1,17 @@
+English Practice Area
+
+Canonical agent guide: ./AGENTS.md
+Long digest: ./llms-full.txt
+Architecture: ./docs/architecture.md
+Contracts: ./docs/practice-contracts.md
+Codebase map: ./docs/codebase-map.md
+Auth/deploy: ./docs/auth-and-deploy.md
+Examples: ./docs/examples/README.md
+Visual system: ./design.md
+
+Key facts:
+- Topic-centric English learning system
+- One shared practice engine across builders
+- Auth.js + Drizzle + Postgres + Next.js 16
+- Grounded feedback preferred over speculative fallback
+- Profile owns progress and learning map surfaces

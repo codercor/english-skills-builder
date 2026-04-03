@@ -1,0 +1,49 @@
+{
+  "_notes": "Canonical session payload shape for the practice UI. Focus on builderKind, learningMode, targetItems, and item interaction metadata.",
+  "id": "session_demo_01",
+  "builderKind": "vocabulary",
+  "topicKey": "work-study-vocabulary",
+  "title": "Work Study Vocabulary Builder Lesson",
+  "learningMode": "learn",
+  "mode": "practice",
+  "sessionCompleted": false,
+  "microIntro": {
+    "whatItIs": "A compact lesson that introduces usable vocabulary for work and study contexts.",
+    "whenToUse": "Use it when talking about goals, plans, deadlines, and communication.",
+    "commonTrap": "Knowing the phrase but not using it in a natural collocation.",
+    "modelExamples": [
+      "We still need to meet the deadline this week.",
+      "I need to follow up with the team tomorrow."
+    ]
+  },
+  "targetItems": [
+    {
+      "itemKey": "meet-a-deadline",
+      "label": "meet a deadline",
+      "kind": "collocation",
+      "register": "neutral",
+      "state": "practising",
+      "stateLabel": "Practising",
+      "confidenceLabel": "Usage not proven",
+      "nextProofNeeded": "Use the collocation naturally in one supported sentence.",
+      "timesUsed": 1,
+      "successfulUses": 0
+    }
+  ],
+  "items": [
+    {
+      "id": "item_demo_01",
+      "prompt": "Which sentence uses \"meet a deadline\" more naturally?",
+      "promptType": "rewrite",
+      "interactionType": "hybrid_choice_text",
+      "choiceOptions": [
+        { "id": "a", "text": "We still need to meet the deadline this week." },
+        { "id": "b", "text": "We still need to catch the deadline this week." }
+      ],
+      "correctChoiceId": "a",
+      "followUpMode": "exact_rewrite",
+      "followUpPrompt": "Rewrite the better sentence exactly.",
+      "followUpAcceptedAnswer": "We still need to meet the deadline this week."
+    }
+  ]
+}

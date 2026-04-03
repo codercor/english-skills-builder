@@ -1,0 +1,142 @@
+[
+  {
+    "route": "/",
+    "kind": "page",
+    "file": "src/app/page.tsx"
+  },
+  {
+    "route": "/api/assessment/evaluate",
+    "kind": "api",
+    "file": "src/app/api/assessment/evaluate/route.ts"
+  },
+  {
+    "route": "/api/assessment/start",
+    "kind": "api",
+    "file": "src/app/api/assessment/start/route.ts"
+  },
+  {
+    "route": "/api/auth/[...nextauth]",
+    "kind": "api",
+    "file": "src/app/api/auth/[...nextauth]/route.ts"
+  },
+  {
+    "route": "/api/league/current",
+    "kind": "api",
+    "file": "src/app/api/league/current/route.ts"
+  },
+  {
+    "route": "/api/personalization/next",
+    "kind": "api",
+    "file": "src/app/api/personalization/next/route.ts"
+  },
+  {
+    "route": "/api/practice/complete",
+    "kind": "api",
+    "file": "src/app/api/practice/complete/route.ts"
+  },
+  {
+    "route": "/api/practice/evaluate",
+    "kind": "api",
+    "file": "src/app/api/practice/evaluate/route.ts"
+  },
+  {
+    "route": "/api/practice/next",
+    "kind": "api",
+    "file": "src/app/api/practice/next/route.ts"
+  },
+  {
+    "route": "/api/profile/insights",
+    "kind": "api",
+    "file": "src/app/api/profile/insights/route.ts"
+  },
+  {
+    "route": "/api/profile/onboarding",
+    "kind": "api",
+    "file": "src/app/api/profile/onboarding/route.ts"
+  },
+  {
+    "route": "/api/profile/recalibrate",
+    "kind": "api",
+    "file": "src/app/api/profile/recalibrate/route.ts"
+  },
+  {
+    "route": "/api/review/complete",
+    "kind": "api",
+    "file": "src/app/api/review/complete/route.ts"
+  },
+  {
+    "route": "/api/review/next",
+    "kind": "api",
+    "file": "src/app/api/review/next/route.ts"
+  },
+  {
+    "route": "/assessment",
+    "kind": "page",
+    "file": "src/app/(workspace)/assessment/page.tsx"
+  },
+  {
+    "route": "/builders",
+    "kind": "page",
+    "file": "src/app/(workspace)/builders/page.tsx"
+  },
+  {
+    "route": "/builders/[builder]",
+    "kind": "page",
+    "file": "src/app/(workspace)/builders/[builder]/page.tsx"
+  },
+  {
+    "route": "/builders/[builder]/[topicKey]",
+    "kind": "page",
+    "file": "src/app/(workspace)/builders/[builder]/[topicKey]/page.tsx"
+  },
+  {
+    "route": "/home",
+    "kind": "page",
+    "file": "src/app/(workspace)/home/page.tsx"
+  },
+  {
+    "route": "/league",
+    "kind": "page",
+    "file": "src/app/(workspace)/league/page.tsx"
+  },
+  {
+    "route": "/map",
+    "kind": "page",
+    "file": "src/app/(workspace)/map/page.tsx"
+  },
+  {
+    "route": "/onboarding",
+    "kind": "page",
+    "file": "src/app/(workspace)/onboarding/page.tsx"
+  },
+  {
+    "route": "/ops",
+    "kind": "page",
+    "file": "src/app/(workspace)/ops/page.tsx"
+  },
+  {
+    "route": "/practice/[sessionId]",
+    "kind": "page",
+    "file": "src/app/(workspace)/practice/[sessionId]/page.tsx"
+  },
+  {
+    "route": "/profile",
+    "kind": "page",
+    "file": "src/app/(workspace)/profile/page.tsx"
+  },
+  {
+    "route": "/profile/recalibrate",
+    "kind": "page",
+    "file": "src/app/(workspace)/profile/recalibrate/page.tsx"
+  },
+  {
+    "route": "/progress",
+    "kind": "page",
+    "file": "src/app/(workspace)/progress/page.tsx"
+  },
+  {
+    "route": "/review",
+    "kind": "page",
+    "file": "src/app/(workspace)/review/page.tsx"
+  }
+]

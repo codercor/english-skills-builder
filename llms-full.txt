@@ -1,0 +1,48 @@
+English Practice Area - Long LLM Digest
+
+Read AGENTS.md first. It is canonical.
+
+Product model
+- The product is not a loose collection of English tools.
+- It is a connected learning loop: onboarding -> assessment -> recommendation -> practice -> feedback -> review -> profile/map/progress.
+- The core unit is a topic-centric structure. Builders are lenses over the same underlying learning system.
+
+Core runtime
+- `src/lib/catalog.ts` defines builders, topics, and related metadata.
+- `src/lib/data/practice-bank.ts` defines authored practice blueprints and safe fallback blueprints.
+- `src/lib/server/learning.ts` creates sessions, updates review timing, computes recommendations, and builds many workspace snapshots.
+- `src/lib/server/topic-views.ts` builds builder hub, builder catalog, topic detail, and learning map snapshots.
+- `src/lib/engine/evaluator.ts` evaluates practice responses and emits user-facing feedback with confidence metadata.
+- `src/lib/engine/scoring.ts` computes response, session, weekly, and speed-bonus scores.
+- `src/lib/db/schema.ts` is the persistence source of truth.
+
+Critical invariants
+- Builders are not separate backends.
+- Manual practice and recommendation-driven practice both update the same mastery and review state.
+- Ungrounded topics must not generate broad open-ended prompts.
+- `hybrid_choice_text` items use recognition-first flow; the follow-up may be `exact_rewrite` or `open_production`.
+- `exact_rewrite` accepts normalized exact matches before any generic text evaluation.
+- `feedbackConfidence=low_confidence` means the UI should not present a normal authoritative numeric score.
+
+Auth and deploy
+- Auth.js Google sign-in is configured in `src/auth.ts`.
+- Production requires `AUTH_SECRET`, `NEXTAUTH_URL`, `DATABASE_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`.
+- Production Postgres must be remote. Localhost database URLs are invalid on Vercel.
+- Google OAuth issues commonly break at either invalid client, invalid secret, or callback URL mismatch.
+
+Surface map
+- `/` marketing/auth entry
+- `/home` recommendation-first dashboard
+- `/builders` builders hub
+- `/builders/[builder]` topic catalog
+- `/builders/[builder]/[topicKey]` topic detail, history, and launch actions
+- `/practice/[sessionId]` focus-mode practice
+- `/review` due review queue
+- `/profile` overview, map, and progress insights
+- `/progress` and `/map` redirect into profile tabs
+
+If you need details:
+- Domain terms: `docs/domain-glossary.md`
+- Practice contracts: `docs/practice-contracts.md`
+- Data model: `docs/data-model.md`
+- Troubleshooting: `docs/troubleshooting.md`

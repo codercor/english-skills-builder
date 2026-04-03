@@ -1,0 +1,140 @@
+[
+  {
+    "exportName": "users",
+    "tableName": "users",
+    "subsystem": "auth",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "sessions",
+    "tableName": "sessions",
+    "subsystem": "auth",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "profiles",
+    "tableName": "profiles",
+    "subsystem": "profile",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "onboardingProfiles",
+    "tableName": "onboarding_profiles",
+    "subsystem": "onboarding",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "goals",
+    "tableName": "goals",
+    "subsystem": "profile",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "skillProfiles",
+    "tableName": "skill_profiles",
+    "subsystem": "profile",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "structureCatalog",
+    "tableName": "structure_catalog",
+    "subsystem": "catalog",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "assessmentAttempts",
+    "tableName": "assessment_attempts",
+    "subsystem": "assessment",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "practiceSessions",
+    "tableName": "practice_sessions",
+    "subsystem": "practice",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "practiceItems",
+    "tableName": "practice_items",
+    "subsystem": "practice",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "userResponses",
+    "tableName": "user_responses",
+    "subsystem": "practice",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "feedbackEvents",
+    "tableName": "feedback_events",
+    "subsystem": "practice",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "errorEvents",
+    "tableName": "error_events",
+    "subsystem": "practice",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "reviewItems",
+    "tableName": "review_items",
+    "subsystem": "review",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "masteryRecords",
+    "tableName": "mastery_records",
+    "subsystem": "mastery",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "progressionDecisions",
+    "tableName": "progression_decisions",
+    "subsystem": "mastery",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "recommendationEvents",
+    "tableName": "recommendation_events",
+    "subsystem": "recommendation",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "leagueWeeks",
+    "tableName": "league_weeks",
+    "subsystem": "league",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "leagueMemberships",
+    "tableName": "league_memberships",
+    "subsystem": "league",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "leagueScores",
+    "tableName": "league_scores",
+    "subsystem": "league",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "structureCups",
+    "tableName": "structure_cups",
+    "subsystem": "league",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "bossSessions",
+    "tableName": "boss_sessions",
+    "subsystem": "league",
+    "file": "src/lib/db/schema.ts"
+  },
+  {
+    "exportName": "achievements",
+    "tableName": "achievements",
+    "subsystem": "league",
+    "file": "src/lib/db/schema.ts"
+  }
+]

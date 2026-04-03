@@ -51,6 +51,9 @@ export interface PracticeBlueprint {
   evaluationRubric: PracticeItem["evaluationRubric"];
 }
 
+// This bank is intentionally mixed: strongly authored items where pedagogy matters,
+// safe fallbacks where only tightly grounded tasks are allowed, and builder-specific
+// metadata that the shared practice engine can reuse without forking by builder.
 const practiceBlueprintBank: Record<string, PracticeBlueprint[]> = {
   articles: [
     {

@@ -1,0 +1,16 @@
+{
+  "_notes": "Learning map previews stay topic-level, but vocabulary topics can expose item-level evidence summaries inside the preview.",
+  "topicKey": "opinion-verbs",
+  "builderKind": "vocabulary",
+  "title": "Opinion Verbs",
+  "masteryPercent": 58,
+  "dueReview": true,
+  "learnedItemsCount": 4,
+  "stableItemsCount": 1,
+  "dueItemCards": 2,
+  "recentLearnedItems": [
+    "argue",
+    "suggest",
+    "claim"
+  ]
+}

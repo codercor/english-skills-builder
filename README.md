@@ -1,53 +1,69 @@
-# English Practice Structure Gym
+# English Practice Area
 
-Adaptive, structure-first English practice MVP built with Next.js. The product is designed around one connected learning loop:
+English Practice Area is a topic-centric English learning product built with Next.js. The app is designed around one connected loop:
 
-`onboarding -> placement -> best next practice -> self-repair feedback -> session summary -> review -> progress/profile -> recalibration -> league`
+`onboarding -> assessment -> recommendation -> practice -> feedback -> review -> profile/map/progress`
+
+This repository is intentionally structured so product surfaces, learning logic, and persistence all flow through the same core engine instead of splitting into disconnected feature silos.
+
+## Fast Orientation
+
+Read these files in order:
+
+1. [AGENTS.md](./AGENTS.md)
+2. [llms-full.txt](./llms-full.txt)
+3. [docs/architecture.md](./docs/architecture.md)
+4. [docs/codebase-map.md](./docs/codebase-map.md)
+5. [design.md](./design.md) for visual rules
 
 ## Stack
 
 - Next.js 16 App Router
-- TypeScript + Tailwind CSS v4
+- React 19
+- TypeScript
+- Tailwind CSS v4
 - Auth.js v4
 - Drizzle ORM
 - Postgres
-- OpenAI API
-- Vercel-ready deployment shape
+- OpenAI API with deterministic fallback evaluation
+- Vercel deployment target
 
-## What is implemented
+## Product Surfaces
 
-- Marketing landing page with Google auth CTA
-- Goal-first onboarding screen
-- Quick placement flow with 10 prompts and scoring result
-- Home dashboard with connected recommendation, review, mastery, league, and skill cards
-- Interactive practice session UI with:
-  - highlighted feedback
-  - hint 1 / hint 2
-  - accepted answer reveal after repeated misses
-  - natural rewrite
-  - level-up variants
-- Review queue page
-- Progress dashboard
-- Profile dashboard with user-facing insights
-- League page with weekly league, improvement board, structure cup, and boss-session concept
-- Ops dashboard
-- API routes for assessment, practice, review, personalization, profile insights, and league data
-- Rule-first scoring, mastery, progression, and learning score engine
-- Drizzle schema covering auth, learning events, mastery, recommendation logs, leagues, and achievements
+- `/` marketing landing page and Google auth entry
+- `/onboarding` goal and learner profile setup
+- `/assessment` placement and recalibration flow
+- `/home` recommendation-first dashboard
+- `/builders` builders hub
+- `/builders/[builder]` builder catalog
+- `/builders/[builder]/[topicKey]` topic detail and history
+- `/practice/[sessionId]` focus-mode practice runtime
+- `/review` due review queue
+- `/profile` overview, learning map, and progress insights
+- `/league` league and competition layer
+- `/ops` internal operations dashboard
 
-## Runtime expectation
+Compatibility redirects still exist for `/progress` and `/map`, but both route into profile tabs.
 
-This app now expects real Auth.js, Postgres, and persistence-backed learning data. Workspace routes are no longer backed by shared in-memory learner state.
+## Core Runtime Shape
+
+- `src/lib/catalog.ts` is the topic and builder catalog source of truth.
+- `src/lib/data/practice-bank.ts` holds authored practice blueprints and safe fallbacks.
+- `src/lib/server/learning.ts` composes sessions, recommendations, review scheduling, and workspace snapshots.
+- `src/lib/server/topic-views.ts` builds builder hub, topic detail, and learning map snapshots.
+- `src/lib/engine/evaluator.ts` evaluates practice responses and shapes user-facing feedback.
+- `src/lib/engine/scoring.ts` handles response, session, weekly, and speed-bonus scoring.
+- `src/lib/db/schema.ts` is the persistence source of truth.
 
 ## Environment
 
-Create `.env.local` from `.env.example`.
+Create a local env file from the example:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Minimum useful setup:
+Required for a useful production-like run:
 
 - `AUTH_SECRET`
 - `NEXTAUTH_URL`
@@ -57,8 +73,15 @@ Minimum useful setup:
 
 Optional:
 
+- `DATABASE_URL_UNPOOLED`
+- `PGHOST`
+- `PGHOST_UNPOOLED`
+- `AUTH_RESEND_KEY`
+- `AUTH_EMAIL_FROM`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+
+See [docs/auth-and-deploy.md](./docs/auth-and-deploy.md) for local vs production rules, Neon notes, and Google OAuth setup.
 
 ## Development
 
@@ -74,9 +97,10 @@ Open [http://localhost:3000](http://localhost:3000).
 ```bash
 npm run lint
 npm run build
+npm run docs:check
 ```
 
-## Database scripts
+## Database
 
 ```bash
 npm run db:generate
@@ -84,37 +108,20 @@ npm run db:push
 npm run db:studio
 ```
 
-## Local Postgres with Docker
+`drizzle.config.ts` reads `DATABASE_URL`, so local and production migrations use the same variable name with different values.
 
-Start Postgres:
+## Documentation Map
 
-```bash
-docker compose up -d
-```
-
-Stop Postgres:
-
-```bash
-docker compose down
-```
-
-The included compose file starts PostgreSQL 16 with these defaults:
-
-- host: `localhost`
-- port: `5432`
-- database: `english_practice_area`
-- user: `postgres`
-- password: `postgres`
-
-This matches the example `DATABASE_URL`:
-
-```env
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/english_practice_area
-```
-
-## Notes
-
-- Auth is wired for Google sign-in through Auth.js.
-- The runtime database client is configured for standard Postgres, including local Docker Postgres.
-- Practice evaluation uses OpenAI when `OPENAI_API_KEY` is present and falls back to deterministic scoring when it is not.
-- Personalization currently uses bounded recommendation candidates and can be upgraded later to LLM ranking or ML ranking without breaking the data model.
+- [AGENTS.md](./AGENTS.md): canonical agent operating guide
+- [llms.txt](./llms.txt): short machine-readable overview
+- [llms-full.txt](./llms-full.txt): long machine-readable digest
+- [docs/architecture.md](./docs/architecture.md): product and runtime architecture
+- [docs/domain-glossary.md](./docs/domain-glossary.md): canonical domain language
+- [docs/codebase-map.md](./docs/codebase-map.md): ownership map
+- [docs/practice-contracts.md](./docs/practice-contracts.md): practice/evaluator contracts
+- [docs/data-model.md](./docs/data-model.md): persistence model
+- [docs/auth-and-deploy.md](./docs/auth-and-deploy.md): env, auth, deploy, and Neon
+- [docs/troubleshooting.md](./docs/troubleshooting.md): known failure modes
+- [docs/examples/README.md](./docs/examples/README.md): representative fixtures
+- [docs/adr](./docs/adr): key architecture decisions
+- [design.md](./design.md): visual system source of truth

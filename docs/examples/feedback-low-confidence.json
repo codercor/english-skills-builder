@@ -1,0 +1,26 @@
+{
+  "_notes": "Low-confidence feedback example. The UI should not present this like a fully authoritative scored evaluation.",
+  "itemId": "item_demo_03",
+  "structureKey": "hedging",
+  "feedbackSource": "safe_fallback",
+  "feedbackConfidence": "low_confidence",
+  "scoreVisible": false,
+  "taskStep": "text",
+  "issues": [
+    {
+      "kind": "tone_register",
+      "title": "Tone / register",
+      "summary": "The sentence may be too direct for the intended tone, but the evidence is limited.",
+      "severity": "medium",
+      "fixFirst": true,
+      "hint": "Try softening the claim with a cautious phrase."
+    }
+  ],
+  "hint1": "Use a softer reporting phrase.",
+  "hint2": "Avoid absolute certainty if the evidence is limited.",
+  "acceptedAnswer": "It may be more effective to review the result before deciding.",
+  "naturalRewrite": "It might be better to review the result before making a final decision.",
+  "qualityScore": 0.62,
+  "responseScore": 0.59,
+  "isAccepted": false
+}

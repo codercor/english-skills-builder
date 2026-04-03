@@ -251,6 +251,8 @@ function isOpenProductionItem(item: PracticeItem) {
 }
 
 function groundedExpectedTokens(item: PracticeItem) {
+  // Keep typo detection tied to explicit task targets. Pulling tokens from wide prose
+  // such as natural rewrites or topic titles causes false positives and breaks trust.
   return [
     ...(item.groundingTargets ?? []),
     ...item.evaluationRubric.requiredTokens,

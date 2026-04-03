@@ -1,0 +1,12 @@
+{
+  "_notes": "Example recognition-first flow. Recognition contributes low-weight proof and then opens a real use task.",
+  "prompt": "Which sentence sounds more natural in everyday English?",
+  "interactionType": "hybrid_choice_text",
+  "choiceOptions": [
+    { "id": "a", "text": "I want to go home now." },
+    { "id": "b", "text": "I want to go to home now." }
+  ],
+  "correctChoiceId": "a",
+  "followUpMode": "open_production",
+  "followUpPrompt": "Now use the spoken chunk in one sentence from your own life."
+}

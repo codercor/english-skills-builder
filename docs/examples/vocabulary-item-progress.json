@@ -1,0 +1,21 @@
+{
+  "_notes": "Vocabulary item evidence should explain why an item is not yet stable.",
+  "itemKey": "meet-a-deadline",
+  "label": "meet a deadline",
+  "kind": "collocation",
+  "register": "neutral",
+  "state": "practising",
+  "stateLabel": "Practising",
+  "confidenceLabel": "Seen before, but usage is not stable yet.",
+  "timesUsed": 2,
+  "successfulUses": 1,
+  "recognitionWins": 1,
+  "supportedUseWins": 1,
+  "independentUseWins": 0,
+  "reviewWins": 0,
+  "firstSeenAt": "2026-04-01T09:00:00.000Z",
+  "lastUsedAt": "2026-04-02T18:30:00.000Z",
+  "reviewDue": true,
+  "lastIncorrectReason": "Used a weak collocation instead of the target phrase.",
+  "nextProofNeeded": "Use the collocation naturally in one new sentence without support."
+}

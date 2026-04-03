@@ -1,0 +1,26 @@
+{
+  "_notes": "Grounded feedback example. This should be treated as authoritative because the task and issue are explicitly constrained.",
+  "itemId": "item_demo_02",
+  "structureKey": "spoken-chunks",
+  "feedbackSource": "authored_bank",
+  "feedbackConfidence": "grounded",
+  "scoreVisible": true,
+  "taskStep": "text",
+  "issues": [
+    {
+      "kind": "word_choice",
+      "title": "Word choice",
+      "summary": "English usually says \"go home\", not \"go to home\".",
+      "severity": "high",
+      "fixFirst": true,
+      "hint": "Remove the extra preposition and use the chunk directly."
+    }
+  ],
+  "hint1": "Use the spoken chunk directly.",
+  "hint2": "Try the sentence again without the extra preposition.",
+  "acceptedAnswer": "I want to go home now.",
+  "naturalRewrite": "I just want to go home now.",
+  "qualityScore": 0.52,
+  "responseScore": 0.48,
+  "isAccepted": false
+}
