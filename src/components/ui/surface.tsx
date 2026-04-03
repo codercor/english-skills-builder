@@ -9,7 +9,7 @@ export const Surface = React.forwardRef<
   <section
     ref={ref}
     className={cn(
-      "rounded-[28px] bg-[color:var(--color-soft)] p-5 shadow-[0_24px_60px_rgba(25,28,29,0.05)] sm:p-6",
+      "rounded-[28px] bg-[color:var(--color-surface-container-low)] p-5 shadow-[0_8px_32px_rgba(32,48,68,0.06)] sm:p-6",
       className,
     )}
     {...props}

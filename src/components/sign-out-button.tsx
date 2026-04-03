@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function SignOutButton() {
@@ -10,15 +11,17 @@ export function SignOutButton() {
   return (
     <Button
       size="sm"
-      variant="secondary"
+      variant="ghost"
       disabled={isPending}
+      className="px-2 sm:px-4"
       onClick={() =>
         startTransition(async () => {
           await signOut({ callbackUrl: "/" });
         })
       }
     >
-      Sign out
+      <span className="hidden sm:inline">Sign out</span>
+      <LogOut className="size-4 sm:hidden" />
     </Button>
   );
 }

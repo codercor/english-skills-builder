@@ -77,39 +77,39 @@ export default async function HomePage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
-        <Surface className="bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_78%)] px-5 py-6 text-white shadow-[0_32px_96px_rgba(25,28,29,0.14)] sm:px-7 sm:py-7">
+        <Surface className="bg-[color:var(--color-surface-container-lowest)] px-5 py-6 shadow-[0_8px_32px_rgba(32,48,68,0.06)] sm:px-7 sm:py-7">
           <div className="flex flex-wrap gap-2">
-            <Badge className="border-0 bg-white/10 text-white shadow-none">
+            <Badge className="border-0 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] shadow-none">
               {snapshot.overallLevel} overall
             </Badge>
-            <Badge className="border-0 bg-white/10 text-white shadow-none">
+            <Badge className="border-0 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] shadow-none">
               {snapshot.todayMission.modeLabel}
             </Badge>
           </div>
-          <p className="editorial-kicker mt-5 text-white/60">Today’s mission</p>
-          <h1 className="mt-3 max-w-4xl text-[clamp(2.35rem,5.4vw,4.1rem)] font-semibold leading-[0.96] tracking-[-0.05em]">
+          <p className="editorial-kicker mt-5 text-[color:var(--color-on-surface-variant)]">Today’s mission</p>
+          <h1 className="mt-3 max-w-4xl text-[clamp(2.35rem,5.4vw,4.1rem)] font-semibold leading-[0.96] tracking-[-0.05em] text-[color:var(--color-on-surface)]">
             {snapshot.todayMission.title}
           </h1>
-          <p className="mt-4 text-sm leading-7 text-white/72">
+          <p className="mt-4 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
             {snapshot.todayMission.technicalLabel}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Badge className="border-0 bg-white/10 text-white shadow-none">
+            <Badge className="border-0 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] shadow-none">
               {snapshot.todayMission.targetLevel}
             </Badge>
-            <Badge className="border-0 bg-white/10 text-white shadow-none">
+            <Badge className="border-0 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] shadow-none">
               {snapshot.todayMission.promptCount} prompts
             </Badge>
-            <Badge className="border-0 bg-white/10 text-white shadow-none">
+            <Badge className="border-0 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] shadow-none">
               {snapshot.momentumLabel}
             </Badge>
           </div>
-          <p className="mt-6 max-w-3xl text-sm leading-8 text-white/78">
+          <p className="mt-6 max-w-3xl text-sm leading-8 text-[color:var(--color-on-surface)]">
             {snapshot.todayMission.note}
           </p>
-          <div className="mt-6 rounded-[1.8rem] bg-white/10 px-4 py-4">
-            <p className="editorial-kicker text-white/58">Success today</p>
-            <p className="mt-3 text-sm leading-7 text-white">
+          <div className="mt-6 rounded-[1.8rem] bg-[color:var(--color-surface-container-low)] px-4 py-4">
+            <p className="editorial-kicker text-[color:var(--color-on-surface-variant)]">Success today</p>
+            <p className="mt-3 text-sm leading-7 text-[color:var(--color-on-surface)]">
               {snapshot.todayMission.successDefinition}
             </p>
           </div>
@@ -120,7 +120,7 @@ export default async function HomePage() {
             {snapshot.todayMission.secondaryActions.map((action) => (
               <Link href={action.href} key={action.label}>
                 <Button
-                  className="bg-white/14 text-white shadow-none hover:bg-white/20 hover:text-white"
+                  className="shadow-none"
                   size="lg"
                   variant="secondary"
                 >
@@ -132,43 +132,43 @@ export default async function HomePage() {
         </Surface>
 
         <div className="grid gap-5">
-          <Surface className="tonal-card space-y-4">
+          <Surface className=" space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="editorial-kicker">Why this now</p>
-                <h2 className="mt-3 text-[1.55rem] font-semibold text-[color:var(--color-ink)]">
+                <h2 className="mt-3 text-[1.55rem] font-semibold text-[color:var(--color-on-surface)]">
                   {snapshot.currentFocus}
                 </h2>
               </div>
-              <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
+              <Badge className="bg-[color:var(--color-surface-container-lowest)] text-[color:var(--color-on-surface-variant)] shadow-none">
                 {snapshot.todayMission.modeLabel}
               </Badge>
             </div>
-            <div className="space-y-4 text-sm leading-7 text-[color:var(--color-ink)]">
-              <div className="rounded-[1.6rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <div className="space-y-4 text-sm leading-7 text-[color:var(--color-on-surface)]">
+              <div className="rounded-[1.6rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
                 <p className="editorial-kicker">What keeps slipping</p>
-                <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
+                <p className="mt-2 text-sm leading-7 text-[color:var(--color-on-surface)]">
                   {snapshot.whyNow.whatKeepsSlipping}
                 </p>
               </div>
-              <div className="rounded-[1.6rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <div className="rounded-[1.6rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
                 <p className="editorial-kicker">What this practice will improve</p>
-                <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
+                <p className="mt-2 text-sm leading-7 text-[color:var(--color-on-surface)]">
                   {snapshot.whyNow.whatThisImproves}
                 </p>
               </div>
-              <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+              <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                 {snapshot.whyNow.support}
               </p>
             </div>
           </Surface>
 
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
-            <Surface className="tonal-card space-y-4">
+            <Surface className=" space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="editorial-kicker">Review pressure</p>
-                  <h2 className="mt-3 text-[1.45rem] font-semibold text-[color:var(--color-ink)]">
+                  <h2 className="mt-3 text-[1.45rem] font-semibold text-[color:var(--color-on-surface)]">
                     {snapshot.reviewPressure.dueCount
                       ? `${snapshot.reviewPressure.dueCount} due now`
                       : "Nothing due right now"}
@@ -176,7 +176,7 @@ export default async function HomePage() {
                 </div>
                 <Badge>{snapshot.reviewPressure.overdueCount} overdue</Badge>
               </div>
-              <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+              <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                 {snapshot.reviewPressure.note}
               </p>
               <Link href={snapshot.reviewPressure.actionHref} className="inline-flex">
@@ -187,30 +187,30 @@ export default async function HomePage() {
               </Link>
             </Surface>
 
-            <Surface className="tonal-card space-y-4">
+            <Surface className=" space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="editorial-kicker">Next unlock</p>
-                  <h2 className="mt-3 text-[1.45rem] font-semibold text-[color:var(--color-ink)]">
+                  <h2 className="mt-3 text-[1.45rem] font-semibold text-[color:var(--color-on-surface)]">
                     {snapshot.nextUnlock.structureTitle}
                   </h2>
                 </div>
-                <Badge className="bg-[color:var(--color-hint)] text-[color:var(--color-hint-ink)] shadow-none">
+                <Badge className="bg-[color:var(--color-surface-container-lowest)] text-[color:var(--color-on-surface-variant)] shadow-none">
                   {snapshot.nextUnlock.currentStageLabel}
                 </Badge>
               </div>
-              <p className="text-sm leading-7 text-[color:var(--color-ink)]">
+              <p className="text-sm leading-7 text-[color:var(--color-on-surface)]">
                 Move from{" "}
                 <span className="font-semibold">{snapshot.nextUnlock.currentStageLabel}</span> to{" "}
                 <span className="font-semibold">{snapshot.nextUnlock.nextStageLabel}</span>.
               </p>
-              <div className="rounded-[1.6rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+              <div className="rounded-[1.6rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
                 <p className="editorial-kicker">Requirement</p>
-                <p className="mt-2 text-sm leading-7 text-[color:var(--color-ink)]">
+                <p className="mt-2 text-sm leading-7 text-[color:var(--color-on-surface)]">
                   {snapshot.nextUnlock.requirement}
                 </p>
               </div>
-              <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+              <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                 {snapshot.nextUnlock.note}
               </p>
               <Link href={snapshot.nextUnlock.actionHref} className="inline-flex">
@@ -227,28 +227,28 @@ export default async function HomePage() {
       <section className="space-y-4">
         <div>
           <p className="editorial-kicker">Proof you’re improving</p>
-          <h2 className="mt-3 text-[1.95rem] font-semibold text-[color:var(--color-ink)]">
+          <h2 className="mt-3 text-[1.95rem] font-semibold text-[color:var(--color-on-surface)]">
             Real evidence from your last two weeks
           </h2>
         </div>
         {snapshot.progressProof.items.length ? (
           <div className="grid gap-5 lg:grid-cols-3">
             {snapshot.progressProof.items.map((item) => (
-              <Surface className="tonal-card space-y-4" key={item.id}>
+              <Surface className=" space-y-4" key={item.id}>
                 <p className="editorial-kicker">{item.label}</p>
-                <p className="font-display text-[2.6rem] font-semibold leading-none text-[color:var(--color-ink)]">
+                <p className="font-display text-[2.6rem] font-semibold leading-none text-[color:var(--color-on-surface)]">
                   {item.value}
                 </p>
-                <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+                <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                   {item.note}
                 </p>
               </Surface>
             ))}
           </div>
         ) : (
-          <Surface className="tonal-card">
+          <Surface className="">
             <p className="editorial-kicker">{snapshot.progressProof.fallbackTitle}</p>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
+            <p className="mt-3 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
               {snapshot.progressProof.fallbackBody}
             </p>
           </Surface>
@@ -256,62 +256,62 @@ export default async function HomePage() {
       </section>
 
       {snapshot.recentWin ? (
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="editorial-kicker">Recent win</p>
-              <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+              <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
                 A sentence that got stronger
               </h2>
             </div>
             <Badge>{snapshot.recentWin.structureTitle}</Badge>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[1.8rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <div className="rounded-[1.8rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
               <p className="editorial-kicker">Before</p>
-              <p className="mt-3 text-base leading-8 text-[color:var(--color-ink)]">
+              <p className="mt-3 text-base leading-8 text-[color:var(--color-on-surface)]">
                 {snapshot.recentWin.beforeText}
               </p>
             </div>
-            <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,#f1e4c8,#f8efe0)] px-4 py-4">
-              <p className="editorial-kicker text-[color:var(--color-hint-ink)]">After</p>
-              <p className="mt-3 text-base leading-8 text-[color:var(--color-hint-ink)]">
+            <div className="rounded-[1.8rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4">
+              <p className="editorial-kicker text-[color:var(--color-on-surface-variant)]">After</p>
+              <p className="mt-3 text-base leading-8 text-[color:var(--color-on-surface-variant)]">
                 {snapshot.recentWin.afterText}
               </p>
             </div>
           </div>
-          <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+          <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
             {snapshot.recentWin.note}
           </p>
         </Surface>
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div>
             <p className="editorial-kicker">This week’s practice coverage</p>
-            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
               What you actually worked on
             </h2>
           </div>
           {snapshot.practiceCoverage.practiceSessions || snapshot.practiceCoverage.reviewItems ? (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
                   <p className="editorial-kicker">Practice sessions</p>
-                  <p className="mt-3 text-3xl font-semibold text-[color:var(--color-ink)]">
+                  <p className="mt-3 text-3xl font-semibold text-[color:var(--color-on-surface)]">
                     {snapshot.practiceCoverage.practiceSessions}
                   </p>
                 </div>
-                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
                   <p className="editorial-kicker">Review items</p>
-                  <p className="mt-3 text-3xl font-semibold text-[color:var(--color-ink)]">
+                  <p className="mt-3 text-3xl font-semibold text-[color:var(--color-on-surface)]">
                     {snapshot.practiceCoverage.reviewItems}
                   </p>
                 </div>
-                <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+                <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
                   <p className="editorial-kicker">Topics touched</p>
-                  <p className="mt-3 text-3xl font-semibold text-[color:var(--color-ink)]">
+                  <p className="mt-3 text-3xl font-semibold text-[color:var(--color-on-surface)]">
                     {snapshot.practiceCoverage.topicsTouched}
                   </p>
                 </div>
@@ -320,10 +320,10 @@ export default async function HomePage() {
                 {snapshot.practiceCoverage.builderCounts.map((area) => (
                   <div
                     key={area.builderKind}
-                    className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                    className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 "
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[color:var(--color-ink)]">
+                      <p className="text-sm font-semibold text-[color:var(--color-on-surface)]">
                         {area.label}
                       </p>
                       <p className="text-sm font-semibold text-[color:var(--color-primary)]">
@@ -340,16 +340,16 @@ export default async function HomePage() {
               </div>
             </>
           ) : (
-            <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+            <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
               Your coverage map will fill in after your first completed session this week.
             </p>
           )}
         </Surface>
 
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div>
             <p className="editorial-kicker">Builders at a glance</p>
-            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
               Open practice by builder, not only by recommendation
             </h2>
           </div>
@@ -357,18 +357,18 @@ export default async function HomePage() {
             {snapshot.builderQuickAccess.map((item) => (
               <div
                 key={item.builderKind}
-                className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 "
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="editorial-kicker">{item.title}</p>
-                    <p className="mt-2 text-base font-semibold text-[color:var(--color-ink)]">
+                    <p className="mt-2 text-base font-semibold text-[color:var(--color-on-surface)]">
                       {item.learnedTopics} topics touched · {item.activeTopics} active
                       {item.builderKind === "vocabulary" && item.learnedItems !== undefined
                         ? ` · ${item.learnedItems} words/chunks used`
                         : ""}
                     </p>
-                    <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-muted)]">
+                    <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-on-surface-variant)]">
                       {item.dueReviews} due review
                       {item.builderKind === "vocabulary" && item.dueItemCards !== undefined
                         ? ` · ${item.dueItemCards} due word cards`
@@ -384,7 +384,7 @@ export default async function HomePage() {
                     </Button>
                   </Link>
                 </div>
-                <p className="mt-4 text-sm leading-7 text-[color:var(--color-muted)]">
+                <p className="mt-4 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                   {item.description}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -410,10 +410,10 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div>
             <p className="editorial-kicker">Practice more where it is thin</p>
-            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
               What you have not touched enough yet
             </h2>
           </div>
@@ -421,12 +421,12 @@ export default async function HomePage() {
             {snapshot.underPracticedAreas.map((item) => (
               <div
                 key={`${item.builderKind}-${item.title}`}
-                className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 "
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="editorial-kicker">{item.title}</p>
-                    <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                    <p className="mt-2 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                       {item.note}
                     </p>
                   </div>
@@ -440,30 +440,30 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
-          <div className="rounded-[1.8rem] bg-[linear-gradient(135deg,#f1e4c8,#f8efe0)] px-4 py-4">
-            <p className="editorial-kicker text-[color:var(--color-hint-ink)]">Recently learned</p>
+          <div className="rounded-[1.8rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4">
+            <p className="editorial-kicker text-[color:var(--color-on-surface-variant)]">Recently learned</p>
             {snapshot.recentlyLearnedTopics.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {snapshot.recentlyLearnedTopics.map((topic) => (
                   <Link href={topic.href} key={topic.topicKey}>
-                    <Badge className="bg-white/70 text-[color:var(--color-hint-ink)] shadow-none">
+                    <Badge className="bg-[color:var(--color-surface-container-low)] text-[color:var(--color-on-surface-variant)] shadow-none">
                       {topic.title} · {topic.stateLabel}
                     </Badge>
                   </Link>
                 ))}
               </div>
             ) : (
-              <p className="mt-3 text-sm leading-7 text-[color:var(--color-hint-ink)]">
+              <p className="mt-3 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                 Your first completed builder lesson will begin filling this strip with real learned topics.
               </p>
             )}
           </div>
         </Surface>
 
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div>
             <p className="editorial-kicker">Learning map</p>
-            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
               What needs attention and what is holding
             </h2>
           </div>
@@ -471,15 +471,15 @@ export default async function HomePage() {
             {snapshot.learningMapSummary.map((item) => (
               <div
                 key={`${item.label}-${item.structureTitle}`}
-                className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 "
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="editorial-kicker">{item.label}</p>
-                    <p className="mt-2 text-base font-semibold text-[color:var(--color-ink)]">
+                    <p className="mt-2 text-base font-semibold text-[color:var(--color-on-surface)]">
                       {item.structureTitle}
                     </p>
-                    <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-muted)]">
+                    <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-on-surface-variant)]">
                       {item.stageLabel}
                     </p>
                   </div>
@@ -490,7 +490,7 @@ export default async function HomePage() {
                     </Button>
                   </Link>
                 </div>
-                <p className="mt-4 text-sm leading-7 text-[color:var(--color-muted)]">
+                <p className="mt-4 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                   {item.note}
                 </p>
               </div>
@@ -506,10 +506,10 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.98fr_1.02fr]">
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div>
             <p className="editorial-kicker">Current profile</p>
-            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+            <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
               Where you are strongest and where the lift is next
             </h2>
           </div>
@@ -517,14 +517,14 @@ export default async function HomePage() {
             {snapshot.skillSnapshots.map((skill) => (
               <div
                 key={skill.area}
-                className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]"
+                className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 "
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[color:var(--color-ink)]">
+                    <p className="text-sm font-semibold text-[color:var(--color-on-surface)]">
                       {skill.label}
                     </p>
-                    <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-muted)]">
+                    <p className="text-[0.72rem] uppercase tracking-[0.04rem] text-[color:var(--color-on-surface-variant)]">
                       {skill.levelBand} ·{" "}
                       {skillCommentary(
                         skill,
@@ -533,7 +533,7 @@ export default async function HomePage() {
                       )}
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-[color:var(--color-coral)]">
+                  <p className="text-sm font-semibold text-[color:var(--color-secondary)]">
                     {formatPercent(skill.score)}
                   </p>
                 </div>
@@ -541,11 +541,11 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
-          <div className="rounded-[1.9rem] bg-[linear-gradient(135deg,#f1e4c8,#f8efe0)] px-5 py-5">
-            <p className="editorial-kicker text-[color:var(--color-hint-ink)]">
+          <div className="rounded-[1.9rem] bg-[color:var(--color-surface-container-lowest)] px-5 py-5">
+            <p className="editorial-kicker text-[color:var(--color-on-surface-variant)]">
               Most improved area
             </p>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--color-hint-ink)]">
+            <p className="mt-3 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
               {snapshot.mostImprovedArea} is translating recent review wins into cleaner first tries.
             </p>
           </div>
@@ -553,12 +553,12 @@ export default async function HomePage() {
             <div className="grid gap-3">
               {snapshot.continueLearning.slice(0, 3).map((item) => (
                 <Link href={item.href} key={`${item.builderKind}-${item.title}`}>
-                  <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)] transition hover:bg-[color:var(--color-soft)]">
+                  <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4  transition hover:bg-[color:var(--color-surface-container-low)]">
                     <p className="editorial-kicker">Continue learning</p>
-                    <p className="mt-2 text-sm font-semibold text-[color:var(--color-ink)]">
+                    <p className="mt-2 text-sm font-semibold text-[color:var(--color-on-surface)]">
                       {item.title}
                     </p>
-                    <p className="mt-2 text-sm leading-7 text-[color:var(--color-muted)]">
+                    <p className="mt-2 text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
                       {item.note}
                     </p>
                   </div>
@@ -566,17 +566,17 @@ export default async function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 text-sm leading-7 text-[color:var(--color-muted)] shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 text-sm leading-7 text-[color:var(--color-on-surface-variant)] ">
               Start a builder lesson and this panel will begin surfacing the topics that are worth continuing.
             </div>
           )}
         </Surface>
 
-        <Surface className="tonal-card space-y-5">
+        <Surface className=" space-y-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="editorial-kicker">League snapshot</p>
-              <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-ink)]">
+              <h2 className="mt-3 text-[1.8rem] font-semibold text-[color:var(--color-on-surface)]">
                 Keep competition in the background
               </h2>
             </div>
@@ -585,26 +585,26 @@ export default async function HomePage() {
             </Badge>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
               <p className="editorial-kicker">Weekly score</p>
-              <p className="mt-3 text-3xl font-semibold text-[color:var(--color-ink)]">
+              <p className="mt-3 text-3xl font-semibold text-[color:var(--color-on-surface)]">
                 {Math.round(snapshot.leagueMini.weeklyLearningScore)}
               </p>
             </div>
-            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
               <p className="editorial-kicker">Movement</p>
-              <p className="mt-3 text-lg font-semibold text-[color:var(--color-ink)]">
+              <p className="mt-3 text-lg font-semibold text-[color:var(--color-on-surface)]">
                 {snapshot.leagueMini.movementLabel}
               </p>
             </div>
-            <div className="rounded-[1.7rem] bg-[color:var(--color-panel)] px-4 py-4 shadow-[0_16px_32px_rgba(25,28,29,0.03)]">
+            <div className="rounded-[1.7rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-4 ">
               <p className="editorial-kicker">League size</p>
-              <p className="mt-3 text-3xl font-semibold text-[color:var(--color-ink)]">
+              <p className="mt-3 text-3xl font-semibold text-[color:var(--color-on-surface)]">
                 {snapshot.leagueMini.totalMembers}
               </p>
             </div>
           </div>
-          <p className="text-sm leading-7 text-[color:var(--color-muted)]">
+          <p className="text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
             Your league stays visible, but learning stays first. Use it as background momentum, not as the main reason to open the app.
           </p>
           <Link href={snapshot.leagueMini.href} className="inline-flex">

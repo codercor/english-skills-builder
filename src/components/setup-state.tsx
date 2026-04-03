@@ -16,15 +16,15 @@ export function SetupState({
   actionLabel: string;
 }) {
   return (
-    <section className="overflow-hidden rounded-[2.3rem] bg-[color:var(--color-soft)] p-6 shadow-[0_24px_60px_rgba(25,28,29,0.05)] sm:p-8">
-      <p className="inline-flex rounded-full bg-[color:var(--color-hint)] px-4 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.05rem] text-[color:var(--color-hint-ink)]">
+    <section className="overflow-hidden rounded-[28px] bg-[color:var(--color-surface-container-lowest)] p-6 shadow-[0_8px_32px_rgba(32,48,68,0.06)] sm:p-8">
+      <p className="inline-flex rounded-full bg-[color:var(--color-surface-container-low)] px-4 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.05rem] text-[color:var(--color-primary)]">
         {badge}
       </p>
       <div className="mt-5 max-w-3xl">
-        <h1 className="editorial-headline text-[color:var(--color-coach-ink)] sm:text-[2.8rem]">
+        <h1 className="editorial-headline text-[color:var(--color-on-surface)] sm:text-[2.8rem]">
           {title}
         </h1>
-        <p className="mt-4 text-sm leading-7 text-[color:var(--color-coach-muted)]">
+        <p className="mt-4 text-sm leading-[1.8] text-[color:var(--color-on-surface-variant)]">
           {body}
         </p>
       </div>

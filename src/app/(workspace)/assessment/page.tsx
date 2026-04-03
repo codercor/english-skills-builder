@@ -24,23 +24,29 @@ export default async function AssessmentPage() {
   const questions = await getAssessmentQuestions();
 
   return (
-    <div className="space-y-5">
-      <AssessmentHandoff profile={persistedProfile} />
-      <section className="space-y-4 px-1">
-        <p className="inline-flex rounded-full bg-[color:var(--color-coach-highlight)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-coach-ink)]">
-          quick placement
-        </p>
-        <div>
-          <h1 className="max-w-3xl text-4xl font-semibold text-[color:var(--color-ink)]">
-            A short placement, then your first real practice lane.
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-[color:var(--color-muted)]">
-            These 10 prompts mix completion, repair, and open production. The result
-            sets your starting level and sharpens what home recommends next.
-          </p>
-        </div>
-      </section>
-      <AssessmentClient questions={questions} />
+    <div className="space-y-6 pb-24">
+      <AssessmentClient 
+        questions={questions} 
+        headerNode={
+          <div className="space-y-6">
+            <AssessmentHandoff profile={persistedProfile} />
+            <section className="space-y-4 px-1">
+              <p className="inline-flex rounded-full bg-[color:var(--color-primary-container)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-primary)]">
+                quick placement
+              </p>
+              <div>
+                <h1 className="max-w-3xl text-4xl font-semibold text-[color:var(--color-on-surface)]">
+                  A short placement, then your first real practice lane.
+                </h1>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-[color:var(--color-on-surface-variant)]">
+                  These 10 prompts mix completion, repair, and open production. The result
+                  sets your starting level and sharpens what home recommends next.
+                </p>
+              </div>
+            </section>
+          </div>
+        }
+      />
     </div>
   );
 }

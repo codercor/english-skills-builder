@@ -50,7 +50,7 @@ export function AssessmentHandoff({
   }
 
   return (
-    <section className="overflow-hidden rounded-[36px] bg-[color:var(--color-coach-paper)] p-6 shadow-[0_24px_60px_rgba(25,28,29,0.05)] sm:p-7">
+    <section className="overflow-hidden rounded-[36px] bg-[color:var(--color-coach-paper)] p-6 shadow-[0_8px_32px_rgba(32,48,68,0.06)] sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="inline-flex rounded-full bg-[color:var(--color-coach-clay-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-coach-ink)]">
@@ -64,7 +64,7 @@ export function AssessmentHandoff({
           </p>
         </div>
 
-        <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[color:var(--color-coach-panel)] text-[color:var(--color-coach-clay)] shadow-[0_16px_32px_rgba(25,28,29,0.04)]">
+        <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[color:var(--color-coach-panel)] text-[color:var(--color-coach-clay)] shadow-[0_8px_32px_rgba(32,48,68,0.06)]">
           <HeartHandshake className="size-5" />
         </div>
       </div>
@@ -73,7 +73,7 @@ export function AssessmentHandoff({
         {tags.map((tag) => (
           <span
             key={tag}
-            className="rounded-full bg-[color:var(--color-coach-panel)] px-4 py-2 text-sm font-semibold text-[color:var(--color-coach-ink)] shadow-[inset_0_0_0_1px_var(--color-line)]"
+            className="rounded-full bg-[color:var(--color-coach-panel)] px-4 py-2 text-sm font-semibold text-[color:var(--color-coach-ink)]"
           >
             {tag}
           </span>

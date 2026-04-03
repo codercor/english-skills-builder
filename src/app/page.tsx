@@ -1,32 +1,9 @@
-import Link from "next/link";
-import {
-  ArrowRight,
-  CheckCircle2,
-  Sparkles,
-  Trophy,
-  WandSparkles,
-} from "lucide-react";
+import { Sparkles, Trophy, WandSparkles } from "lucide-react";
 import { isAuthConfigured } from "@/auth";
 import { AuthCta } from "@/components/auth-cta";
 import { BrandMark } from "@/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Surface } from "@/components/ui/surface";
-
-const mentorNotes = [
-  {
-    label: "Structure-first drills",
-    body: "Each session isolates a sentence pattern so the learner can repair one thing clearly instead of wandering through generic chat.",
-  },
-  {
-    label: "Self-repair loop",
-    body: "The model highlights weakness, gives a nudge, and waits for a rewrite before it reveals the cleaner sentence.",
-  },
-  {
-    label: "One connected engine",
-    body: "Placement, practice, review, mastery, and weekly ranking all run on the same learning signal.",
-  },
-];
 
 const featureRows = [
   {
@@ -48,157 +25,76 @@ const featureRows = [
 
 export default function LandingPage() {
   return (
-    <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(15,76,92,0.1),transparent_24%),radial-gradient(circle_at_88%_4%,rgba(223,177,95,0.18),transparent_26%)]" />
+    <div className="relative overflow-hidden bg-[color:var(--color-surface)]">
       <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-16 pt-4 sm:px-6 lg:px-8">
-        <header className="glass-shell flex items-center justify-between rounded-[2rem] px-4 py-3 shadow-[0_24px_60px_rgba(25,28,29,0.07)]">
+        <header className="flex items-center justify-between rounded-[2rem] bg-[color:var(--color-surface-container-lowest)] px-4 py-3 shadow-[0_8px_32px_rgba(32,48,68,0.06)]">
           <BrandMark />
-          <Badge className="hidden sm:inline-flex">Editorial learning system</Badge>
+          <Badge className="hidden sm:inline-flex bg-[color:var(--color-surface-container-low)] text-[color:var(--color-on-surface-variant)]">Editorial learning system</Badge>
         </header>
 
-        <main className="grid flex-1 gap-8 py-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)] lg:items-start lg:py-10">
-          <section className="fade-up rounded-[2.5rem] bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_65%,#235b68_100%)] px-5 py-7 text-white shadow-[0_36px_120px_rgba(25,28,29,0.18)] sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-            <Badge className="border-0 bg-white/10 text-white shadow-none">
-              The digital mentor
-            </Badge>
-            <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.75fr)] lg:items-start">
-              <div>
-                <p className="editorial-kicker text-white/60">Adaptive English production</p>
-                <h1 className="editorial-display mt-4 max-w-3xl">
-                  Train the exact sentence structures that keep your English flat.
-                </h1>
-                <p className="mt-5 max-w-2xl text-[0.98rem] leading-8 text-white/78">
-                  This product is not a generic AI grammar checker. It is a
-                  structure-first practice system that diagnoses weakness,
-                  forces self-repair, schedules review, and turns the same
-                  learning data into mastery, guidance, and calm competition.
-                </p>
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                  <Link href="#auth">
-                    <Button size="lg">
-                      Continue with Google
-                      <ArrowRight className="ml-2 size-4" />
-                    </Button>
-                  </Link>
-                  <Link href="#product-flow">
-                    <Button size="lg" variant="secondary" className="bg-white/16 text-white shadow-none hover:bg-white/22 hover:text-white">
-                      Read the product flow
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="glass-shell rounded-[2rem] px-5 py-5">
-                  <p className="editorial-kicker text-white/55">Best next practice</p>
-                  <p className="mt-3 font-display text-[2rem] font-semibold leading-none">
-                    Articles
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-white/74">
-                    Repeating misses are still coming from article control and sentence combining.
-                  </p>
-                </div>
-                <div className="rounded-[2rem] bg-white/8 px-5 py-5">
-                  <p className="editorial-kicker text-white/55">Why now</p>
-                  <ul className="mt-3 grid gap-3">
-                    {mentorNotes.slice(0, 2).map((item) => (
-                      <li key={item.label} className="text-sm leading-7 text-white/74">
-                        <span className="font-semibold text-white">{item.label}:</span>{" "}
-                        {item.body}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-10 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-[2rem] bg-white/7 px-5 py-5">
-                <p className="editorial-kicker text-white/55">What changes</p>
-                <p className="mt-3 text-sm leading-7 text-white/74">
-                  Learners stop collecting shallow corrections and start building sentence control that survives review and pressure.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {mentorNotes.map((item, index) => (
-                  <article
-                    key={item.label}
-                    className={`rounded-[2rem] bg-white/8 px-4 py-5 ${index === 1 ? "sm:translate-y-5" : ""}`}
-                  >
-                    <p className="editorial-kicker text-white/55">{item.label}</p>
-                    <p className="mt-3 text-sm leading-7 text-white/74">
-                      {item.body}
-                    </p>
-                  </article>
-                ))}
+        <main className="grid flex-1 gap-8 py-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)] lg:items-start lg:py-10">
+          <section className="fade-up rounded-[2.5rem] bg-[color:var(--color-surface-container-lowest)] px-6 py-12 text-[color:var(--color-on-surface)] shadow-[0_8px_32px_rgba(32,48,68,0.06)] sm:px-16 sm:py-24 flex flex-col justify-center min-h-[65vh]">
+            <div>
+              <Badge className="border-0 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] shadow-none font-medium">
+                The digital mentor
+              </Badge>
+              
+              <h1 className="font-display mt-8 max-w-2xl text-[clamp(2.2rem,8vw,4rem)] font-semibold leading-[1.05] tracking-tight text-[color:var(--color-on-surface)]">
+                Train the exact sentence structures that keep your English flat.
+              </h1>
+              
+              <p className="mt-6 max-w-xl text-[1.1rem] leading-[1.8] text-[color:var(--color-on-surface-variant)]">
+                This product is not a generic AI grammar checker. It is a structure-first practice system that diagnoses weakness, forces self-repair, schedules review, and turns learning data into mastery.
+              </p>
+              
+              <div className="mt-10 max-w-md">
+                <AuthCta enabled={isAuthConfigured} />
+                {!isAuthConfigured ? (
+                  <div className="mt-4 rounded-2xl bg-[color:var(--color-error)]/10 px-4 py-3 text-sm leading-7 text-[color:var(--color-error)]">
+                    Google auth is not configured yet, so sign-in is temporarily unavailable.
+                  </div>
+                ) : null}
               </div>
             </div>
           </section>
 
-          <section className="fade-up grid gap-5">
-            <Surface className="space-y-5 tonal-card" id="auth">
+          <aside className="fade-up grid gap-6 lg:translate-y-12">
+            <Surface className="space-y-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <Badge>Entry point</Badge>
-                  <h2 className="editorial-headline mt-4 text-[color:var(--color-ink)]">
-                    Sign in and enter a connected learning loop
+                  <p className="text-[0.75rem] font-semibold uppercase tracking-wider text-[color:var(--color-on-surface-variant)]">
+                    Why this works
+                  </p>
+                  <h2 className="mt-3 text-xl font-semibold text-[color:var(--color-on-surface)]">
+                    A connected learning loop
                   </h2>
                 </div>
-                <CheckCircle2 className="mt-1 size-5 shrink-0 text-[color:var(--color-coral)]" />
               </div>
-              <p className="text-sm leading-7 text-[color:var(--color-muted)]">
-                Google sign-in is the only entry. From there, the learner moves
-                through onboarding, placement, best-next practice, self-repair,
-                review, profile insights, and leagues without disconnected pages
-                or empty metrics.
+              <p className="text-sm leading-[1.8] text-[color:var(--color-on-surface-variant)]">
+                From placement to practice, review, and leagues, everything runs on a single, validated learning signal. There are no disconnected pages or empty metrics.
               </p>
-              <AuthCta enabled={isAuthConfigured} />
-              {!isAuthConfigured ? (
-                <div className="rounded-[1.5rem] bg-[color:var(--color-error-soft)] px-4 py-3 text-sm leading-7 text-[color:var(--color-error-ink)]">
-                  Google auth is not configured yet, so sign-in is temporarily unavailable.
-                </div>
-              ) : null}
-            </Surface>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {featureRows.map((feature, index) => {
-                const Icon = feature.icon;
-
-                return (
-                  <Surface
-                    key={feature.title}
-                    className={`space-y-4 tonal-card ${index === 1 ? "md:translate-y-6" : ""}`}
-                    id={index === 0 ? "product-flow" : undefined}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid size-11 place-items-center rounded-[1.2rem] bg-[color:var(--color-panel)] text-[color:var(--color-primary)] shadow-[0_16px_34px_rgba(25,28,29,0.04)]">
+              <div className="pt-4 space-y-6 border-t-[0px] relative before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-[color:var(--color-outline-variant)] before:opacity-15">
+                {featureRows.map((feature) => {
+                  const Icon = feature.icon;
+                  return (
+                    <div key={feature.title} className="flex items-start gap-4">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[color:var(--color-surface-container-lowest)] text-[color:var(--color-primary)] shadow-[0_8px_32px_rgba(32,48,68,0.06)]">
                         <Icon className="size-4.5" />
                       </div>
-                      <p className="editorial-kicker">{index + 1}. Core layer</p>
+                      <div>
+                        <h3 className="text-[0.95rem] font-semibold text-[color:var(--color-on-surface)]">
+                          {feature.title}
+                        </h3>
+                        <p className="mt-1 text-[0.85rem] leading-[1.6] text-[color:var(--color-on-surface-variant)]">
+                          {feature.body}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-[1.55rem] font-semibold text-[color:var(--color-ink)]">
-                        {feature.title}
-                      </h3>
-                      <p className="mt-3 text-sm leading-7 text-[color:var(--color-muted)]">
-                        {feature.body}
-                      </p>
-                    </div>
-                  </Surface>
-                );
-              })}
-            </div>
-
-            <Surface className="tonal-card space-y-4">
-              <p className="editorial-kicker">Why the product feels coherent</p>
-              <p className="text-sm leading-7 text-[color:var(--color-muted)]">
-                Placement decides the lane. Practice updates mastery. Mastery
-                drives recommendations. Review protects retention. Weekly score
-                reflects the same validated learning events. Nothing exists only
-                for decoration.
-              </p>
+                  );
+                })}
+              </div>
             </Surface>
-          </section>
+          </aside>
         </main>
       </div>
     </div>

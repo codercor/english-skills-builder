@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Blocks, Flame, House, UserRound } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -16,24 +17,31 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="glass-shell fixed inset-x-3 bottom-3 z-30 rounded-[2rem] px-2 py-2 shadow-[0_24px_80px_rgba(25,28,29,0.12)] lg:hidden">
-      <ul className="grid grid-cols-4 gap-1">
+    <nav className="glass-shell fixed inset-x-3 bottom-3 z-30 rounded-[2rem] px-2 py-2 shadow-[0_8px_32px_rgba(32,48,68,0.08)] lg:hidden">
+      <ul className="grid grid-cols-4 gap-1 relative">
         {items.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
           return (
-            <li key={item.href}>
+            <li key={item.href} className="relative z-10">
               <Link
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-[1.2rem] px-2 py-2 text-[0.64rem] font-semibold uppercase tracking-[0.04rem] transition duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+                  "relative flex h-full w-full flex-col items-center justify-center gap-1 rounded-[1.2rem] px-2 py-2 text-[0.64rem] font-semibold uppercase tracking-[0.04rem] transition-colors duration-300",
                   active
-                    ? "bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] text-white shadow-[0_18px_36px_rgba(25,28,29,0.08)]"
-                    : "text-[color:var(--color-muted)] hover:bg-[rgba(255,255,255,0.7)] hover:text-[color:var(--color-ink)]",
+                    ? "text-white"
+                    : "text-[color:var(--color-on-surface-variant)] hover:text-[color:var(--color-on-surface)]",
                 )}
               >
-                <Icon className="size-4" />
-                {item.label}
+                {active && (
+                  <motion.div
+                    layoutId="bottom-nav-pill"
+                    className="absolute inset-0 z-0 rounded-[1.2rem] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-container)] shadow-[0_8px_16px_rgba(74,64,224,0.2)]"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <Icon className={cn("relative z-10 size-4", active ? "text-white" : "")} />
+                <span className={cn("relative z-10", active ? "text-white" : "")}>{item.label}</span>
               </Link>
             </li>
           );

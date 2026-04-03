@@ -29,8 +29,8 @@ export function AppShell({
         }`}
       >
         {!practiceMode ? (
-          <header className="glass-shell sticky top-4 z-20 rounded-[2rem] px-4 py-3 shadow-[0_24px_64px_rgba(25,28,29,0.08)]">
-            <div className="flex items-center justify-between gap-4">
+          <header className="glass-shell sticky top-3 sm:top-4 z-20 rounded-[1.5rem] sm:rounded-[2rem] px-3 py-2 sm:px-4 sm:py-3 shadow-[0_8px_32px_rgba(32,48,68,0.06)]">
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
               <BrandMark />
               <div className="hidden items-center gap-2 lg:flex">
                 <Link href="/home" className="nav-link">
@@ -50,33 +50,25 @@ export function AppShell({
                   Profile
                 </Link>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-1 xl:flex">
-                  <Link href="/league" className="nav-link text-[0.72rem]">
-                    <Medal className="size-3.5" />
-                    League
-                  </Link>
-                </div>
-                <Badge className="hidden gap-2 bg-[color:var(--color-panel)] text-[color:var(--color-primary)] sm:inline-flex">
+              <div className="flex items-center gap-1 sm:gap-3">
+                <Link href="/league" className="nav-link flex px-2 sm:px-3 text-[0.68rem]">
+                  <Medal className="size-4 sm:size-3.5" />
+                  <span className="hidden sm:inline">League</span>
+                </Link>
+                <Badge className="hidden gap-2 bg-[color:var(--color-surface-container-low)] text-[color:var(--color-primary)] sm:inline-flex">
                   <Sparkles className="size-3.5" />
                   Live account
                 </Badge>
                 <div className="hidden text-right sm:block">
-                  <p className="font-display text-sm font-semibold text-[color:var(--color-ink)]">
+                  <p className="font-display text-sm font-semibold text-[color:var(--color-on-surface)]">
                     {viewer.name}
                   </p>
-                  <p className="text-[0.7rem] uppercase tracking-[0.05rem] text-[color:var(--color-muted)]">
+                  <p className="text-[0.7rem] uppercase tracking-[0.05rem] text-[color:var(--color-on-surface-variant)]">
                     {viewer.email}
                   </p>
                 </div>
                 <SignOutButton />
               </div>
-            </div>
-            <div className="mt-3 flex items-center gap-2 overflow-x-auto xl:hidden">
-              <Link href="/league" className="nav-link whitespace-nowrap text-[0.68rem]">
-                <Medal className="size-3.5" />
-                League
-              </Link>
             </div>
           </header>
         ) : null}

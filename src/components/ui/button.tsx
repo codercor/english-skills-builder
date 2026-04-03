@@ -3,16 +3,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-full text-sm font-semibold transition duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center rounded-xl text-sm font-semibold transition duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] disabled:pointer-events-none disabled:opacity-50 hover:-translate-y-0.5",
   {
     variants: {
       variant: {
         primary:
-          "bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] px-5 py-3 text-white shadow-[0_20px_40px_rgba(25,28,29,0.1)] hover:-translate-y-0.5 hover:shadow-[0_26px_48px_rgba(25,28,29,0.13)]",
+          "bg-[linear-gradient(135deg,var(--color-primary),var(--color-primary-container))] px-5 py-3 text-white border-b-2 border-[color:var(--color-primary-dim)] shadow-sm",
         secondary:
-          "bg-[color:var(--color-panel)] px-5 py-3 text-[color:var(--color-primary)] shadow-[inset_0_0_0_1px_var(--color-line)] hover:bg-[color:var(--color-surface-bright)]",
+          "bg-[color:var(--color-surface-container-lowest)] px-5 py-3 text-[color:var(--color-primary)] shadow-sm hover:bg-[color:var(--color-surface-container-low)]",
         ghost:
-          "bg-transparent px-4 py-2 text-[color:var(--color-primary)] shadow-[inset_0_0_0_1px_var(--color-line)] hover:bg-[rgba(255,255,255,0.65)] hover:text-[color:var(--color-ink)]",
+          "bg-transparent px-4 py-2 text-[color:var(--color-primary)] hover:bg-[color:var(--color-surface-container-low)] hover:text-[color:var(--color-on-surface)]",
       },
       size: {
         sm: "h-10 px-4 text-sm",
